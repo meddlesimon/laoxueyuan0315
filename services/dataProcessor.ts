@@ -462,22 +462,537 @@ const generateWeeklyPlan = (
   grade: string,
   ranks: { math: string, chinese: string, english: string },
   weekdayDuration: string,
-  weekendDuration: string
+  weekendDuration: string,
+  machineType: MachineType = 'xueersi'
 ): any[] => {
   const isPrimary = grade.includes('年级') && !grade.includes('初') && !grade.includes('高');
+  const isHighSchool = ['高一', '高二', '高三'].includes(normalizeGrade(grade));
   const isMathTop15 = ranks.math.includes('15%') && (ranks.math.includes('前') || ranks.math.includes('Top'));
   const isChineseTop15 = ranks.chinese.includes('15%') && (ranks.chinese.includes('前') || ranks.chinese.includes('Top'));
   const isEnglishTop15 = ranks.english.includes('15%') && (ranks.english.includes('前') || ranks.english.includes('Top'));
   
+  const isMiddleSchool = ['初一', '初二', '初三'].includes(normalizeGrade(grade));
   const is30Min = weekdayDuration.includes('30') || weekdayDuration.includes('半');
   const is2Hour = weekdayDuration.includes('2') || weekdayDuration.includes('两');
-  
+  const is1_5Hour = weekdayDuration.includes('1.5') || weekdayDuration.includes('一个半') || weekdayDuration.includes('1个半') || (weekdayDuration.includes('1') && weekdayDuration.includes('半'));
+  const is1Hour = !is30Min && !is2Hour && !is1_5Hour &&
+                  (weekdayDuration.includes('1') || weekdayDuration.includes('一小时') || weekdayDuration.includes('1小时'));
+
+  const isWeekend1Hour = weekendDuration.includes('1') || weekendDuration.includes('一小时') || weekendDuration.includes('一个小时');
   const isWeekend2Hour = weekendDuration.includes('2') || weekendDuration.includes('两');
   const isWeekend3Hour = weekendDuration.includes('3') || weekendDuration.includes('三');
 
-  if (!isPrimary && !is30Min) return []; // 30min applies to all up to Junior 3
+  // 放行：小学、初中、高中（任意时长）
+  if (!isPrimary && !isMiddleSchool && !isHighSchool) return [];
 
   const plan: any[] = [];
+
+  // ============================================================
+  // === 科大讯飞（iFlyTek）课表分支 ===
+  // ============================================================
+  if (machineType === 'iflytek') {
+    const W_VOCAB_CONTENT = '用学习机里的天天背单词软件-校内同步单词要全背、同时复习过去2天里学的单词和词组。';
+    const W_MATH_AI_CONTENT = '用《同步精准学》紧跟课内进度学习，课后立即查漏补缺，并认真完成推送的校内同步课程与练习。在单元考、期中考、期末考前用《备考精准学》，检查一个阶段的学习是否有薄弱项，针对薄弱项精准突击，用于考前冲刺。';
+    const W_REST_CONTENT = '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。';
+    const W_MATH_CALC_CONTENT = '重点训练口算、听算能力，提升数学思维';
+    const W_MATH_SPECIAL_CONTENT = '通过重难点突破、典型题训练与解题思路讲解，帮助学生快速锁定考点，掌握高效解题技巧。课程以"讲练结合"为核心，让学生在系统训练中不断夯实基础、提升思维。';
+    const W_MATH_ERR_CONTENT = '利用学习机里的错题集功能，巩固温习过去的错题。48小时内复习错题的效率是1周后再复习的10倍！要及时复习！';
+    const W_MATH_APP_CONTENT = '归纳每学期的应用题重难点，根据难度进行分类，帮助学生精准训练应用题重难点。';
+    const W_THINK_CONTENT = '通过互动闯关逐一攻破小学数学知识点，趣味性强，题目少而精';
+    const W_THINK_VIDEO_CONTENT = '先看视频课学习基本方法，再通过互动闯关逐一攻破小学数学知识点，趣味性强，题目少而精';
+    const W_MATH_SYNC_CONTENT = '上完课就做练习，把学过的题目再做一遍不容易忘。如果学得快，就试试难一点的题，慢慢让自己更厉害。';
+    const W_ENG_SYNC_CONTENT = '在学校正式开始上课之前，可以利用学习机的同步课程提前浏览一遍课程的知识点。其重点在于：1. 对将要学习的内容形成大致印象；2. 提升课堂学习的效率';
+    const W_ENG_SPECIAL_CONTENT = '按语法、完形、阅读、听力等考试常见题型分类，精准提炼了英语学习中所有重难点';
+    const W_ENG_GRADE_CONTENT = '分级阅读是根据阅读材料的词汇难度、句子长度、文体类型、文字排版、篇章结构和主题等要素的不同，给不同阅读能力水平者提供有科学性和针对性的读物。采用分级阅读的模式不但可以让少年儿童的阅读变得科学有效，而且更容易激发他们的阅读兴趣。';
+    const W_ENG_EXAM_CONTENT = '这里都是全国的全真模拟试题，可以选择本市、本省、全国的真题题库。';
+    const W_ENG_ORAL_CONTENT = 'AI虚拟语伴聊天，音标学习、情景对话';
+    const W_CHN_WORD_CONTENT = '和课本同步的字词学习，包括认字、写字、听写、拓展等功能。';
+    const W_CHN_SYNC_CONTENT = '上完课就做练习，把学过的题目再做一遍不容易忘。如果学得快，就试试难一点的题，慢慢让自己更厉害。';
+    const W_CHN_SYNC_COURSE_CONTENT = '在学校正式开始上课之前，可以利用学习机的同步课程提前浏览一遍课程的知识点。其重点在于：1. 对将要学习的内容形成大致印象；2. 提升课堂学习的效率';
+    const W_CHN_SPECIAL_CONTENT = '整个单元学完后，进行的专项练。';
+    const W_CHN_ESSAY_CONTENT = '和课本同步的作文辅导，包含同步作文、专题作文和作文批改功能。';
+    const W_CHN_EXAM_CONTENT = '这里都是全国的全真模拟试题，可以选择本市、本省、全国的真题题库。';
+    const W_CHN_ERR_CONTENT = '利用学习机里的错题集功能，巩固温习过去的错题。48小时内复习错题的效率是1周后再复习的10倍！要及时复习！';
+    const W_MATH_SYNC_PREPARE_CONTENT = '上完课就做练习，把学过的题目再做一遍不容易忘。如果学得快，就试试难一点的题，慢慢让自己更厉害。';
+    const W_MATH_AI_EXAM_CONTENT = '用《备考精准学》，检查一个阶段的学习是否有薄弱项，针对薄弱项精准突击，用于考前冲刺。';
+    const W_MATH_EXAM_CONTENT = '这里都是全国的全真模拟试题，可以选择本市、本省、全国的真题题库。';
+
+    // -------------------------------------------------------
+    // 平日 30分钟
+    // -------------------------------------------------------
+    if (is30Min) {
+      if (isPrimary) {
+        plan.push({ day: '周一', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '5分钟' },
+          { function: '数学计算能力与巧算', content: W_MATH_CALC_CONTENT, time: '10分钟' },
+          { function: '数学AI精准学', content: W_MATH_AI_CONTENT, time: '15分钟' },
+        ]});
+        plan.push({ day: '周二', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+          { function: '英语教材同步课', content: W_ENG_SYNC_CONTENT, time: '20分钟' },
+        ]});
+        plan.push({ day: '周三', items: [
+          { function: '语文字词学习', content: W_CHN_WORD_CONTENT, time: '10分钟' },
+          { function: '语文同步练', content: W_CHN_SYNC_CONTENT, time: '20分钟' },
+        ]});
+        plan.push({ day: '周四', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '5分钟' },
+          { function: '数学计算能力与巧算', content: W_MATH_CALC_CONTENT, time: '10分钟' },
+          { function: '数学AI精准学', content: W_MATH_AI_CONTENT, time: '15分钟' },
+        ]});
+        plan.push({ day: '周五', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+          { function: '英语分级阅读-牛津阅读树', content: W_ENG_GRADE_CONTENT, time: '20分钟' },
+        ]});
+      } else {
+        // 初中/高中 30分钟
+        plan.push({ day: '周一', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '5分钟' },
+          { function: '数学专项练', content: W_MATH_SPECIAL_CONTENT, time: '25分钟' },
+        ]});
+        plan.push({ day: '周二', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+          { function: '英语教材同步课', content: W_ENG_SYNC_CONTENT, time: '20分钟' },
+        ]});
+        plan.push({ day: '周三', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '5分钟' },
+          { function: '语文同步练', content: W_CHN_SYNC_CONTENT, time: '25分钟' },
+        ]});
+        plan.push({ day: '周四', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '5分钟' },
+          { function: '数学AI精准学', content: W_MATH_AI_CONTENT, time: '15分钟' },
+          { function: '数学错题练', content: W_MATH_ERR_CONTENT, time: '10分钟' },
+        ]});
+        plan.push({ day: '周五', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '5分钟' },
+          { function: '英语突破专项练', content: W_ENG_SPECIAL_CONTENT, time: '25分钟' },
+        ]});
+      }
+    }
+
+    // -------------------------------------------------------
+    // 平日 1小时
+    // -------------------------------------------------------
+    else if (is1Hour) {
+      if (isPrimary) {
+        plan.push({ day: '周一', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+          { function: '数学计算能力与巧算', content: W_MATH_CALC_CONTENT, time: '15分钟' },
+          { function: '数学AI精准学', content: W_MATH_AI_CONTENT, time: '15分钟' },
+          { function: '思维拓展课', content: '【选做】' + W_THINK_CONTENT, time: '20分钟' },
+        ]});
+        plan.push({ day: '周二', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '15分钟' },
+          { function: '英语教材同步课', content: W_ENG_SYNC_CONTENT, time: '20分钟' },
+          { function: '英语突破专项练', content: W_ENG_SPECIAL_CONTENT, time: '25分钟' },
+        ]});
+        plan.push({ day: '周三', items: [
+          { function: '语文字词学习', content: W_CHN_WORD_CONTENT, time: '10分钟' },
+          { function: '语文同步练', content: W_CHN_SYNC_CONTENT, time: '20分钟' },
+          { function: '语文教材同步课', content: W_CHN_SYNC_COURSE_CONTENT, time: '30分钟' },
+        ]});
+        plan.push({ day: '周四', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+          { function: '数学计算能力与巧算', content: W_MATH_CALC_CONTENT, time: '10分钟' },
+          { function: '思维拓展课', content: W_THINK_VIDEO_CONTENT, time: '20分钟' },
+          { function: '数学应用题AI课', content: W_MATH_APP_CONTENT, time: '20分钟' },
+        ]});
+        plan.push({ day: '周五', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '15分钟' },
+          { function: '英语分级阅读-牛津阅读树', content: W_ENG_GRADE_CONTENT, time: '20分钟' },
+          { function: '英语突破专项练', content: W_ENG_SPECIAL_CONTENT, time: '25分钟' },
+        ]});
+      } else {
+        // 初中/高中 1小时
+        plan.push({ day: '周一', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+          { function: '数学AI精准学', content: W_MATH_AI_CONTENT, time: '25分钟' },
+          { function: '数学专项练', content: W_MATH_SPECIAL_CONTENT, time: '25分钟' },
+        ]});
+        plan.push({ day: '周二', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+          { function: '英语教材同步课', content: W_ENG_SYNC_CONTENT, time: '20分钟' },
+          { function: '英语精品密卷', content: W_ENG_EXAM_CONTENT, time: '30分钟' },
+        ]});
+        plan.push({ day: '周三', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '5分钟' },
+          { function: '语文同步练习题', content: W_CHN_SYNC_CONTENT, time: '25分钟' },
+          { function: '语文教材同步课', content: W_CHN_SYNC_COURSE_CONTENT, time: '25分钟' },
+        ]});
+        plan.push({ day: '周四', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+          { function: '数学AI精准学', content: W_MATH_AI_CONTENT, time: '15分钟' },
+          { function: '数学错题练', content: W_MATH_ERR_CONTENT, time: '15分钟' },
+          { function: '数学校内同步练', content: W_MATH_SYNC_PREPARE_CONTENT, time: '20分钟' },
+        ]});
+        plan.push({ day: '周五', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+          { function: '英语教材同步课', content: W_ENG_SYNC_CONTENT, time: '20分钟' },
+          { function: '英语精品密卷', content: W_ENG_EXAM_CONTENT, time: '30分钟' },
+        ]});
+      }
+    }
+
+    // -------------------------------------------------------
+    // 平日 1.5小时
+    // -------------------------------------------------------
+    else if (is1_5Hour) {
+      if (isPrimary) {
+        plan.push({ day: '周一', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+          { function: '语文字词学习', content: W_CHN_WORD_CONTENT, time: '10分钟' },
+          { function: '数学计算能力与巧算', content: W_MATH_CALC_CONTENT, time: '15分钟' },
+          { function: '数学AI精准学', content: W_MATH_AI_CONTENT, time: '25分钟' },
+          { function: '思维拓展课', content: W_THINK_CONTENT, time: '30分钟' },
+        ]});
+        plan.push({ day: '周二', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+          { function: '语文字词学习', content: W_CHN_WORD_CONTENT, time: '10分钟' },
+          { function: '英语教材同步课', content: W_ENG_SYNC_CONTENT, time: '25分钟' },
+          { function: '英语突破专项练', content: W_ENG_SPECIAL_CONTENT, time: '25分钟' },
+          { function: '英语分级阅读-牛津阅读树', content: W_ENG_GRADE_CONTENT, time: '20分钟' },
+        ]});
+        plan.push({ day: '周三', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+          { function: '语文字词学习', content: W_CHN_WORD_CONTENT, time: '10分钟' },
+          { function: '语文同步练', content: W_CHN_SYNC_CONTENT, time: '20分钟' },
+          { function: '语文教材同步课', content: W_CHN_SYNC_COURSE_CONTENT, time: '30分钟' },
+          { function: '语文作文辅导', content: W_CHN_ESSAY_CONTENT, time: '20分钟' },
+        ]});
+        plan.push({ day: '周四', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+          { function: '语文字词学习', content: W_CHN_WORD_CONTENT, time: '10分钟' },
+          { function: '数学计算能力与巧算', content: W_MATH_CALC_CONTENT, time: '15分钟' },
+          { function: '思维拓展课', content: W_THINK_VIDEO_CONTENT, time: '25分钟' },
+          { function: '数学应用题AI课', content: W_MATH_APP_CONTENT, time: '30分钟' },
+        ]});
+        plan.push({ day: '周五', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+          { function: '语文字词学习', content: W_CHN_WORD_CONTENT, time: '10分钟' },
+          { function: '数学AI精准学备考模式', content: W_MATH_AI_EXAM_CONTENT, time: '20分钟' },
+          { function: '英语分级阅读-牛津阅读树', content: W_ENG_GRADE_CONTENT, time: '25分钟' },
+          { function: '英语突破专项练', content: W_ENG_SPECIAL_CONTENT, time: '25分钟' },
+        ]});
+      } else {
+        // 初中/高中 1.5小时
+        plan.push({ day: '周一', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+          { function: '数学AI精准学', content: W_MATH_AI_CONTENT, time: '30分钟' },
+          { function: '数学专项练', content: W_MATH_SPECIAL_CONTENT, time: '30分钟' },
+          { function: '数学错题练', content: W_MATH_ERR_CONTENT, time: '20分钟' },
+        ]});
+        plan.push({ day: '周二', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+          { function: '英语教材同步课', content: W_ENG_SYNC_CONTENT, time: '25分钟' },
+          { function: '英语精品密卷', content: W_ENG_EXAM_CONTENT, time: '30分钟' },
+          { function: '英语突破专项练', content: W_ENG_SPECIAL_CONTENT, time: '25分钟' },
+        ]});
+        plan.push({ day: '周三', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+          { function: '语文同步练习题', content: W_CHN_SYNC_CONTENT, time: '25分钟' },
+          { function: '语文教材同步课', content: W_CHN_SYNC_COURSE_CONTENT, time: '25分钟' },
+          { function: '语文精品密卷', content: W_CHN_EXAM_CONTENT, time: '30分钟' },
+        ]});
+        plan.push({ day: '周四', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+          { function: '数学AI精准学', content: W_MATH_AI_CONTENT, time: '30分钟' },
+          { function: '数学校内同步练', content: W_MATH_SYNC_PREPARE_CONTENT, time: '25分钟' },
+          { function: '数学专项练', content: W_MATH_SPECIAL_CONTENT, time: '25分钟' },
+        ]});
+        plan.push({ day: '周五', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+          { function: '英语教材同步课', content: W_ENG_SYNC_CONTENT, time: '25分钟' },
+          { function: '英语精品密卷', content: W_ENG_EXAM_CONTENT, time: '30分钟' },
+          { function: '英语突破专项练', content: W_ENG_SPECIAL_CONTENT, time: '25分钟' },
+        ]});
+      }
+    }
+
+    // -------------------------------------------------------
+    // 平日 2小时
+    // -------------------------------------------------------
+    else if (is2Hour) {
+      if (isPrimary) {
+        plan.push({ day: '周一', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+          { function: '语文字词学习', content: W_CHN_WORD_CONTENT, time: '10分钟' },
+          { function: '数学计算能力与巧算', content: W_MATH_CALC_CONTENT, time: '15分钟' },
+          { function: '数学AI精准学', content: W_MATH_AI_CONTENT, time: '15分钟' },
+          { function: '思维拓展课', content: '【选做】' + W_THINK_CONTENT, time: '20分钟' },
+          { function: '强制休息', content: W_REST_CONTENT, time: '10分钟' },
+          { function: '英语教材同步课', content: W_ENG_SYNC_CONTENT, time: '20分钟' },
+          { function: '英语突破专项练', content: W_ENG_SPECIAL_CONTENT, time: '20分钟' },
+        ]});
+        plan.push({ day: '周二', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+          { function: '语文字词学习', content: W_CHN_WORD_CONTENT, time: '10分钟' },
+          { function: '数学计算能力与巧算', content: W_MATH_CALC_CONTENT, time: '10分钟' },
+          { function: '思维拓展课', content: W_THINK_VIDEO_CONTENT, time: '20分钟' },
+          { function: '数学应用题AI课', content: W_MATH_APP_CONTENT, time: '20分钟' },
+          { function: '强制休息', content: W_REST_CONTENT, time: '10分钟' },
+          { function: '语文同步练', content: W_CHN_SYNC_CONTENT, time: '20分钟' },
+          { function: '语文教材同步课', content: W_CHN_SYNC_COURSE_CONTENT, time: '30分钟' },
+        ]});
+        plan.push({ day: '周三', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+          { function: '语文字词学习', content: W_CHN_WORD_CONTENT, time: '10分钟' },
+          { function: '数学计算能力与巧算', content: W_MATH_CALC_CONTENT, time: '15分钟' },
+          { function: '数学AI精准学', content: W_MATH_AI_CONTENT, time: '20分钟' },
+          { function: '数学错题练', content: W_MATH_ERR_CONTENT, time: '15分钟' },
+          { function: '强制休息', content: W_REST_CONTENT, time: '10分钟' },
+          { function: '英语分级阅读-牛津阅读树', content: W_ENG_GRADE_CONTENT, time: '20分钟' },
+          { function: '英语突破专项练', content: W_ENG_SPECIAL_CONTENT, time: '20分钟' },
+        ]});
+        plan.push({ day: '周四', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+          { function: '语文字词学习', content: W_CHN_WORD_CONTENT, time: '10分钟' },
+          { function: '数学计算能力与巧算', content: W_MATH_CALC_CONTENT, time: '10分钟' },
+          { function: '思维拓展课', content: W_THINK_VIDEO_CONTENT, time: '20分钟' },
+          { function: '数学应用题AI课', content: W_MATH_APP_CONTENT, time: '20分钟' },
+          { function: '强制休息', content: W_REST_CONTENT, time: '10分钟' },
+          { function: '语文专项练', content: W_CHN_SPECIAL_CONTENT, time: '20分钟' },
+          { function: '语文作文辅导', content: W_CHN_ESSAY_CONTENT, time: '20分钟' },
+        ]});
+        plan.push({ day: '周五', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+          { function: '语文字词学习', content: W_CHN_WORD_CONTENT, time: '10分钟' },
+          { function: '数学AI精准学备考模式', content: W_MATH_AI_EXAM_CONTENT, time: '30分钟' },
+          { function: '数学错题练', content: W_MATH_ERR_CONTENT, time: '20分钟' },
+          { function: '强制休息', content: W_REST_CONTENT, time: '10分钟' },
+          { function: '英语教材同步课', content: W_ENG_SYNC_CONTENT, time: '20分钟' },
+          { function: '英语分级阅读-牛津阅读树', content: W_ENG_GRADE_CONTENT, time: '20分钟' },
+        ]});
+      } else {
+        // 初中/高中 2小时
+        plan.push({ day: '周一', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '15分钟' },
+          { function: '数学AI精准学', content: W_MATH_AI_CONTENT, time: '25分钟' },
+          { function: '数学专项练', content: W_MATH_SPECIAL_CONTENT, time: '25分钟' },
+          { function: '强制休息', content: W_REST_CONTENT, time: '10分钟' },
+          { function: '英语教材同步课', content: W_ENG_SYNC_CONTENT, time: '20分钟' },
+          { function: '英语精品密卷', content: W_ENG_EXAM_CONTENT, time: '25分钟' },
+        ]});
+        plan.push({ day: '周二', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '15分钟' },
+          { function: '数学AI精准学', content: W_MATH_AI_CONTENT, time: '25分钟' },
+          { function: '数学专项练', content: W_MATH_SPECIAL_CONTENT, time: '25分钟' },
+          { function: '强制休息', content: W_REST_CONTENT, time: '10分钟' },
+          { function: '语文同步练习题', content: W_CHN_SYNC_CONTENT, time: '25分钟' },
+          { function: '语文教材同步课', content: W_CHN_SYNC_COURSE_CONTENT, time: '20分钟' },
+        ]});
+        plan.push({ day: '周三', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '15分钟' },
+          { function: '数学AI精准学', content: W_MATH_AI_CONTENT, time: '15分钟' },
+          { function: '数学错题练', content: W_MATH_ERR_CONTENT, time: '15分钟' },
+          { function: '数学校内同步练', content: W_MATH_SYNC_PREPARE_CONTENT, time: '20分钟' },
+          { function: '强制休息', content: W_REST_CONTENT, time: '10分钟' },
+          { function: '英语教材同步课', content: W_ENG_SYNC_CONTENT, time: '20分钟' },
+          { function: '英语精品密卷', content: W_ENG_EXAM_CONTENT, time: '25分钟' },
+        ]});
+        plan.push({ day: '周四', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '15分钟' },
+          { function: '数学AI精准学', content: W_MATH_AI_CONTENT, time: '25分钟' },
+          { function: '数学专项练', content: W_MATH_SPECIAL_CONTENT, time: '25分钟' },
+          { function: '强制休息', content: W_REST_CONTENT, time: '10分钟' },
+          { function: '语文同步练习题', content: W_CHN_SYNC_CONTENT, time: '20分钟' },
+          { function: '语文精品密卷', content: W_CHN_EXAM_CONTENT, time: '25分钟' },
+        ]});
+        plan.push({ day: '周五', items: [
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '15分钟' },
+          { function: '数学AI精准学', content: W_MATH_AI_CONTENT, time: '15分钟' },
+          { function: '数学错题练', content: W_MATH_ERR_CONTENT, time: '15分钟' },
+          { function: '数学校内同步练', content: W_MATH_SYNC_PREPARE_CONTENT, time: '20分钟' },
+          { function: '强制休息', content: W_REST_CONTENT, time: '10分钟' },
+          { function: '英语教材同步课', content: W_ENG_SYNC_CONTENT, time: '20分钟' },
+          { function: '英语精品密卷', content: W_ENG_EXAM_CONTENT, time: '25分钟' },
+        ]});
+      }
+    }
+
+    // -------------------------------------------------------
+    // 周末课表（讯飞）
+    // -------------------------------------------------------
+
+    // 周末 1小时·小学
+    if (isWeekend1Hour && isPrimary) {
+      plan.push({ day: '周六', items: [
+        { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+        { function: '数学AI精准学', content: W_MATH_AI_CONTENT, time: '20分钟' },
+        { function: '思维拓展课', content: '【选做】' + W_THINK_CONTENT, time: '20分钟' },
+        { function: '数学错题练', content: W_MATH_ERR_CONTENT, time: '10分钟' },
+      ]});
+      plan.push({ day: '周日', items: [
+        { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+        { function: '英语突破专项练', content: W_ENG_SPECIAL_CONTENT, time: '25分钟' },
+        { function: '英语精品密卷', content: W_ENG_EXAM_CONTENT, time: '25分钟' },
+      ]});
+    }
+
+    // 周末 1小时·初中/高中
+    if (isWeekend1Hour && (isMiddleSchool || isHighSchool)) {
+      plan.push({ day: '周六', items: [
+        { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+        { function: '数学AI精准学', content: W_MATH_AI_CONTENT, time: '25分钟' },
+        { function: '数学专项练', content: W_MATH_SPECIAL_CONTENT, time: '15分钟' },
+        { function: '数学错题练', content: W_MATH_ERR_CONTENT, time: '10分钟' },
+      ]});
+      plan.push({ day: '周日', items: [
+        { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+        { function: '英语教材同步课', content: W_ENG_SYNC_CONTENT, time: '20分钟' },
+        { function: '英语精品密卷', content: W_ENG_EXAM_CONTENT, time: '30分钟' },
+      ]});
+    }
+
+    // 周末 2小时·小学
+    if (isWeekend2Hour && isPrimary) {
+      plan.push({ day: '周六', items: [
+        { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+        { function: '语文字词学习', content: W_CHN_WORD_CONTENT, time: '10分钟' },
+        { function: '数学AI精准学', content: W_MATH_AI_CONTENT, time: '20分钟' },
+        { function: '思维拓展课', content: '【选做】' + W_THINK_CONTENT, time: '20分钟' },
+        { function: '数学错题练', content: W_MATH_ERR_CONTENT, time: '10分钟' },
+        { function: '强制休息', content: W_REST_CONTENT, time: '10分钟' },
+        { function: '英语突破专项练', content: W_ENG_SPECIAL_CONTENT, time: '20分钟' },
+        { function: '英语精品密卷', content: W_ENG_EXAM_CONTENT, time: '20分钟' },
+      ]});
+      plan.push({ day: '周日', items: [
+        { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+        { function: '语文字词学习', content: W_CHN_WORD_CONTENT, time: '10分钟' },
+        { function: '数学计算能力与巧算', content: W_MATH_CALC_CONTENT, time: '10分钟' },
+        { function: '思维拓展课', content: W_THINK_VIDEO_CONTENT, time: '20分钟' },
+        { function: '数学应用题AI课', content: W_MATH_APP_CONTENT, time: '20分钟' },
+        { function: '强制休息', content: W_REST_CONTENT, time: '10分钟' },
+        { function: '语文专项练', content: W_CHN_SPECIAL_CONTENT, time: '20分钟' },
+        { function: '语文作文辅导', content: W_CHN_ESSAY_CONTENT, time: '20分钟' },
+      ]});
+    }
+
+    // 周末 2小时·初中/高中
+    if (isWeekend2Hour && (isMiddleSchool || isHighSchool)) {
+      plan.push({ day: '周六', items: [
+        { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+        { function: '数学AI精准学', content: W_MATH_AI_CONTENT, time: '25分钟' },
+        { function: '数学专项练', content: W_MATH_SPECIAL_CONTENT, time: '15分钟' },
+        { function: '数学错题练', content: W_MATH_ERR_CONTENT, time: '10分钟' },
+        { function: '强制休息', content: W_REST_CONTENT, time: '10分钟' },
+        { function: '英语精品密卷', content: W_ENG_EXAM_CONTENT, time: '20分钟' },
+        { function: '英语听说-专项学习', content: W_ENG_ORAL_CONTENT, time: '20分钟' },
+      ]});
+      plan.push({ day: '周日', items: [
+        { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+        { function: '数学AI精准学', content: W_MATH_AI_CONTENT, time: '15分钟' },
+        { function: '数学错题练', content: W_MATH_ERR_CONTENT, time: '15分钟' },
+        { function: '数学校内同步练', content: W_MATH_SYNC_PREPARE_CONTENT, time: '20分钟' },
+        { function: '强制休息', content: W_REST_CONTENT, time: '10分钟' },
+        { function: '语文精品密卷', content: W_CHN_EXAM_CONTENT, time: '30分钟' },
+        { function: '语文错题练', content: W_CHN_ERR_CONTENT, time: '10分钟' },
+      ]});
+    }
+
+    // 周末 3小时·小学（结构：单词10+数学60+休息10+语文45+休息10+英语45=180）
+    if (isWeekend3Hour && isPrimary) {
+      plan.push({ day: '周六', items: [
+        { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+        { function: '语文字词学习', content: W_CHN_WORD_CONTENT, time: '10分钟' },
+        { function: '数学AI精准学', content: W_MATH_AI_CONTENT, time: '25分钟' },
+        { function: '思维拓展课', content: '【选做】' + W_THINK_CONTENT, time: '25分钟' },
+        { function: '数学错题练', content: W_MATH_ERR_CONTENT, time: '10分钟' },
+        { function: '强制休息', content: W_REST_CONTENT, time: '10分钟' },
+        { function: '语文字词学习', content: W_CHN_WORD_CONTENT, time: '20分钟' },
+        { function: '语文同步练', content: W_CHN_SYNC_CONTENT, time: '25分钟' },
+        { function: '强制休息', content: W_REST_CONTENT, time: '10分钟' },
+        { function: '英语突破专项练', content: W_ENG_SPECIAL_CONTENT, time: '25分钟' },
+        { function: '英语精品密卷', content: W_ENG_EXAM_CONTENT, time: '20分钟' },
+      ]});
+      plan.push({ day: '周日', items: [
+        { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+        { function: '语文字词学习', content: W_CHN_WORD_CONTENT, time: '10分钟' },
+        { function: '数学计算能力与巧算', content: W_MATH_CALC_CONTENT, time: '15分钟' },
+        { function: '思维拓展课', content: W_THINK_VIDEO_CONTENT, time: '25分钟' },
+        { function: '数学应用题AI课', content: W_MATH_APP_CONTENT, time: '20分钟' },
+        { function: '强制休息', content: W_REST_CONTENT, time: '10分钟' },
+        { function: '语文教材同步课', content: W_CHN_SYNC_COURSE_CONTENT, time: '25分钟' },
+        { function: '语文作文辅导', content: W_CHN_ESSAY_CONTENT, time: '20分钟' },
+        { function: '强制休息', content: W_REST_CONTENT, time: '10分钟' },
+        { function: '英语分级阅读-牛津阅读树', content: W_ENG_GRADE_CONTENT, time: '25分钟' },
+        { function: '英语教材同步课', content: W_ENG_SYNC_CONTENT, time: '20分钟' },
+      ]});
+    }
+
+    // 周末 3小时·初中/高中（结构：单词10+数学60+休息10+语文45+休息10+英语45=180）
+    if (isWeekend3Hour && (isMiddleSchool || isHighSchool)) {
+      plan.push({ day: '周六', items: [
+        { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+        { function: '数学AI精准学', content: W_MATH_AI_CONTENT, time: '25分钟' },
+        { function: '数学专项练', content: W_MATH_SPECIAL_CONTENT, time: '20分钟' },
+        { function: '数学错题练', content: W_MATH_ERR_CONTENT, time: '15分钟' },
+        { function: '强制休息', content: W_REST_CONTENT, time: '10分钟' },
+        { function: '语文教材同步课', content: W_CHN_SYNC_COURSE_CONTENT, time: '25分钟' },
+        { function: '语文同步练习题', content: W_CHN_SYNC_CONTENT, time: '20分钟' },
+        { function: '强制休息', content: W_REST_CONTENT, time: '10分钟' },
+        { function: '英语教材同步课', content: W_ENG_SYNC_CONTENT, time: '25分钟' },
+        { function: '英语精品密卷', content: W_ENG_EXAM_CONTENT, time: '20分钟' },
+      ]});
+      plan.push({ day: '周日', items: [
+        { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+        { function: '数学AI精准学', content: W_MATH_AI_CONTENT, time: '20分钟' },
+        { function: '数学校内同步练', content: W_MATH_SYNC_PREPARE_CONTENT, time: '20分钟' },
+        { function: '数学精品密卷', content: W_MATH_EXAM_CONTENT, time: '20分钟' },
+        { function: '强制休息', content: W_REST_CONTENT, time: '10分钟' },
+        { function: '语文精品密卷', content: W_CHN_EXAM_CONTENT, time: '25分钟' },
+        { function: '语文错题练', content: W_CHN_ERR_CONTENT, time: '20分钟' },
+        { function: '强制休息', content: W_REST_CONTENT, time: '10分钟' },
+        { function: '英语听说-专项学习', content: W_ENG_ORAL_CONTENT, time: '25分钟' },
+        { function: '英语突破专项练', content: W_ENG_SPECIAL_CONTENT, time: '20分钟' },
+      ]});
+    }
+
+    return plan;
+  }
+  // ============================================================
+  // === 学而思课表分支（原有逻辑，保持不变）===
+  // ============================================================
+
+  // --- 高中生 30 MINUTE TEMPLATE ---
+  if (is30Min && isHighSchool) {
+    plan.push({
+      day: '周一',
+      items: [
+        { function: '数学AI精准学（标准模式）', content: '检测最新学的知识点，对知识弱项进行针对性的提高', time: '15分钟' },
+        { function: '数学错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '10分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把所有日常作业拍照上传到学习机', time: '5分钟' }
+      ]
+    });
+    plan.push({
+      day: '周二',
+      items: [
+        { function: '英语校内同步练', content: '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度', time: '25分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把所有日常作业拍照上传到学习机', time: '5分钟' }
+      ]
+    });
+    plan.push({
+      day: '周三',
+      items: [
+        { function: '语文校内同步练', content: '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度', time: '25分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把所有日常作业拍照上传到学习机', time: '5分钟' }
+      ]
+    });
+    plan.push({
+      day: '周四',
+      items: [
+        { function: '数学校内同步练', content: '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度', time: '25分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把所有日常作业拍照上传到学习机', time: '5分钟' }
+      ]
+    });
+    plan.push({
+      day: '周五',
+      items: [
+        { function: '英语必考专项练', content: '分成"日常知识积累"和"学期必考专项"，结合了不同年级学生应该掌握的知识点来安排。英语科目比较特别，全国各地区各教材版本进度差距较大，大家学习时不用受限于年级，按照自己进度来选就可以。觉得简单了可以选择更高年级的内容来学习。', time: '25分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把所有日常作业拍照上传到学习机', time: '5分钟' }
+      ]
+    });
+    return plan;
+  }
 
   // --- 30 MINUTE TEMPLATE (Grade 1-9) ---
   if (is30Min) {
@@ -510,7 +1025,7 @@ const generateWeeklyPlan = (
       items: [
         { function: '（全科）全科批改/智慧眼', content: '把所有日常作业拍照上传到学习机', time: '5分钟' },
         { function: '数学AI专属练', content: 'AI学习机会根据日常对你的了解，每天给你出10道它认为你最需要加强的题目', time: '10分钟' },
-        { function: '数学错题练', content: '“订正本周错题”和“攻克本周薄弱项”', time: '15分钟' }
+        { function: '数学错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '15分钟' }
       ]
     });
     plan.push({
@@ -519,11 +1034,215 @@ const generateWeeklyPlan = (
         { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
         { function: '（全科）全科批改/智慧眼', content: '把所有日常作业拍照上传到学习机', time: '5分钟' },
         { function: '英语AI听写', content: '每天新背的单词和课内要求背诵的单词必须用听写反复练习', time: '5分钟' },
-        { function: '英语错题练', content: '“订正本周错题”', time: '10分钟' }
+        { function: '英语错题练', content: '"订正本周错题"', time: '10分钟' }
       ]
     });
   } 
-  // --- 2 HOUR TEMPLATE ---
+  // --- 2 HOUR TEMPLATE (High School, Grade 10-12) ---
+  // 结构：数学55分钟（2项）+ 强制休息10分钟 + 语文/英语50分钟 + 批改5分钟 = 120分钟
+  else if (is2Hour && isHighSchool) {
+    // 周一（数学+英语）
+    plan.push({
+      day: '周一',
+      items: [
+        { function: '数学校内同步课', content: '在本周上课前快速听一遍将要学习的内容，可适当倍速，重点是对新知识形成大致印象', time: '30分钟' },
+        { function: '数学重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '25分钟' },
+        { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '10分钟' },
+        { function: '英语校内同步课', content: '在上课前快速听一遍所学内容，可适当倍速，重点是对新知识形成大致印象', time: '30分钟' },
+        { function: '英语校内同步练', content: '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度', time: '20分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' }
+      ]
+    });
+
+    // 周二（数学+语文）
+    plan.push({
+      day: '周二',
+      items: [
+        { function: '数学AI精准学（标准模式）', content: '检测最新学的知识点，对知识弱项进行针对性的提高（听视频课、做练习）', time: '20分钟' },
+        { function: '数学必考专项练', content: '按照教学大纲拆分考点，专项突破提升，不是按照课本单元顺序来分。适合有一定基础的，知道自己薄弱项的学生有针对性的做练习', time: '35分钟' },
+        { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '10分钟' },
+        { function: '语文校内同步课', content: '在上课前快速听一遍所学内容，可适当倍速，重点是对新知识形成大致印象', time: '30分钟' },
+        { function: '语文校内同步练', content: '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度', time: '20分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' }
+      ]
+    });
+
+    // 周三（数学+英语）
+    plan.push({
+      day: '周三',
+      items: [
+        { function: '数学错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '20分钟' },
+        { function: '数学重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '30分钟' },
+        { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '10分钟' },
+        { function: '英语重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '30分钟' },
+        { function: '英语校内同步练', content: '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度', time: '25分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' }
+      ]
+    });
+
+    // 周四（数学+语文）
+    plan.push({
+      day: '周四',
+      items: [
+        { function: '数学王牌拔尖课', content: '如果课内的内容都能听懂，平时成绩90分以上，可直接用王牌拔尖课来练习', time: '25分钟' },
+        { function: '数学AI精准学（标准模式）', content: '检测最新学的知识点，对知识弱项进行针对性的提高（听视频课、做练习）', time: '20分钟' },
+        { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '10分钟' },
+        { function: '语文重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '35分钟' },
+        { function: '语文必考专项练', content: '是针对不同的考点来设计练习，并不是按照课本章节来进行的。适合基础较好，明确知道自己哪里有薄弱项的同学', time: '25分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' }
+      ]
+    });
+
+    // 周五（数学+英语）
+    plan.push({
+      day: '周五',
+      items: [
+        { function: '数学错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '20分钟' },
+        { function: '数学必考专项练', content: '按照教学大纲拆分考点，专项突破提升，不是按照课本单元顺序来分。适合有一定基础的，知道自己薄弱项的学生有针对性的做练习', time: '30分钟' },
+        { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '10分钟' },
+        { function: '英语必考专项练', content: '分成"日常知识积累"和"学期必考专项"，结合了不同年级学生应该掌握的知识点来安排。英语科目比较特别，全国各地区各教材版本进度差距较大，大家学习时不用受限于年级，按照自己进度来选就可以。觉得简单了可以选择更高年级的内容来学习。', time: '30分钟' },
+        { function: '英语错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '25分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' }
+      ]
+    });
+  }
+  // --- 2 HOUR TEMPLATE (Middle School, Grade 7-9) ---
+  // 结构：前20分钟语言积累 + 5分钟全科批改 + 45分钟数学 + 10分钟强制休息 + 40分钟语文/英语 = 120分钟
+  else if (is2Hour && isMiddleSchool) {
+    // 周一（数学+英语）
+    plan.push({
+      day: '周一',
+      items: [
+        { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+        { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '10分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' },
+        {
+          function: isMathTop15 ? '数学王牌拔尖课' : '数学校内同步课',
+          content: isMathTop15 ? '如果课内的内容都能听懂，平时成绩90分以上，可直接用王牌拔尖课来练习' : '在本周上课前快速听一遍将要学习的内容，可适当倍速，重点是对新知识形成大致印象',
+          time: '25分钟'
+        },
+        { function: '数学AI精准学（标准模式）', content: '检测最新学的知识点，对知识弱项进行针对性的提高（听视频课、做练习）', time: '20分钟' },
+        { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '10分钟' },
+        {
+          function: isEnglishTop15 ? '英语重难点提分课' : '英语校内同步课',
+          content: isEnglishTop15 ? '选择你目前认为做薄弱的一个内容来学习' : '在上课前快速听一遍所学内容，可适当倍速，重点是对新知识形成大致印象',
+          time: '25分钟'
+        },
+        {
+          function: isEnglishTop15 ? '英语必考专项练' : '英语校内同步练',
+          content: isEnglishTop15 ? '分成"日常知识积累"和"学期必考专项"，结合了不同年级学生应该掌握的知识点来安排' : '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度',
+          time: '15分钟'
+        }
+      ]
+    });
+
+    // 周二（数学+语文）
+    plan.push({
+      day: '周二',
+      items: [
+        { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+        { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '10分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' },
+        { function: '数学AI专属练', content: 'AI学习机会根据日常对你的了解，每天给你出10道它认为你最需要加强的题目', time: '15分钟' },
+        { function: '数学重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '30分钟' },
+        { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '10分钟' },
+        ...(isChineseTop15 ? [
+          { function: '语文必考专项练', content: '是针对不同的考点来设计练习，并不是按照课本章节来进行的。适合基础较好，明确知道自己哪里有薄弱项的同学', time: '15分钟' },
+          { function: '语文重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '25分钟' }
+        ] : [
+          { function: '语文校内同步课', content: '在上课前快速听一遍所学内容，可适当倍速，重点是对新知识形成大致印象', time: '25分钟' },
+          { function: '语文校内同步练', content: '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度', time: '15分钟' }
+        ])
+      ]
+    });
+
+    // 周三（数学+英语）
+    plan.push({
+      day: '周三',
+      items: [
+        { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+        { function: '英语AI听写', content: '每天新背的单词和课内要求背诵的单词必须用听写反复练习', time: '10分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' },
+        ...(isMathTop15 ? [
+          { function: '数学重难点提分课', content: '选择你目前认为最薄弱的一个内容来学习', time: '20分钟' },
+          { function: '数学必考专项练', content: '按照教学大纲拆分考点，专项突破提升，不是按照课本单元顺序来分。适合有一定基础的，知道自己薄弱项的学生有针对性的做练习', time: '15分钟' },
+          { function: '数学错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '10分钟' }
+        ] : [
+          { function: '数学AI精准学（标准模式）', content: '检测最新学的知识点，对知识弱项进行针对性的提高（听视频课、做练习）', time: '20分钟' },
+          { function: '数学AI专属练', content: 'AI学习机会根据日常对你的了解，每天给你出10道它认为你最需要加强的题目', time: '15分钟' },
+          { function: '数学错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '10分钟' }
+        ]),
+        { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '10分钟' },
+        {
+          function: isEnglishTop15 ? '英语重难点提分课' : '英语校内同步课',
+          content: isEnglishTop15 ? '选择你目前认为最薄弱的一个内容来学习' : '在上课前快速听一遍所学内容，可适当倍速，重点是对新知识形成大致印象',
+          time: isEnglishTop15 ? '30分钟' : '25分钟'
+        },
+        ...(isEnglishTop15 ? [
+          { function: '英语错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '10分钟' }
+        ] : [
+          { function: '英语校内同步练', content: '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度', time: '15分钟' }
+        ])
+      ]
+    });
+
+    // 周四（数学+语文）
+    plan.push({
+      day: '周四',
+      items: [
+        { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+        { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '10分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' },
+        {
+          function: isMathTop15 ? '数学王牌拔尖课' : '数学校内同步课',
+          content: isMathTop15 ? '如果课内的内容都能听懂，平时成绩90分以上，可直接用王牌拔尖课来练习' : '在本周上课前快速听一遍将要学习的内容，可适当倍速，重点是对新知识形成大致印象',
+          time: '25分钟'
+        },
+        {
+          function: isMathTop15 ? '数学AI专属练' : '数学校内同步练',
+          content: isMathTop15 ? 'AI学习机会根据日常对你的了解，每天给你出10道它认为你最需要加强的题目' : '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度',
+          time: '20分钟'
+        },
+        { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '10分钟' },
+        ...(isChineseTop15 ? [
+          { function: '语文重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '25分钟' },
+          { function: '语文必考专项练', content: '是针对不同的考点来设计练习，并不是按照课本章节来进行的。适合基础较好，明确知道自己哪里有薄弱项的同学', time: '15分钟' }
+        ] : [
+          { function: '语文校内同步课', content: '在上课前快速听一遍所学内容，可适当倍速，重点是对新知识形成大致印象', time: '25分钟' },
+          { function: '语文校内同步练', content: '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度', time: '15分钟' }
+        ])
+      ]
+    });
+
+    // 周五（数学+英语）
+    plan.push({
+      day: '周五',
+      items: [
+        { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+        { function: '英语AI听写', content: '每天新背的单词和课内要求背诵的单词必须用听写反复练习', time: '10分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' },
+        { function: '数学错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '15分钟' },
+        ...(isMathTop15 ? [
+          { function: '数学必考专项练', content: '按照教学大纲拆分考点，专项突破提升，不是按照课本单元顺序来分。适合有一定基础的，知道自己薄弱项的学生有针对性的做练习', time: '15分钟' },
+          { function: '数学重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '15分钟' }
+        ] : [
+          { function: '数学AI专属练', content: 'AI学习机会根据日常对你的了解，每天给你出10道它认为你最需要加强的题目', time: '15分钟' },
+          { function: '数学AI精准学（标准模式）', content: '检测最新学的知识点，对知识弱项进行针对性的提高（听视频课、做练习）', time: '15分钟' }
+        ]),
+        { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '10分钟' },
+        ...(isEnglishTop15 ? [
+          { function: '英语必考专项练', content: '分成"日常知识积累"和"学期必考专项"，结合了不同年级学生应该掌握的知识点来安排', time: '20分钟' },
+          { function: 'AI口语分级练', content: '用 AI 大模型生成的口语陪练教练，带你一起聊一聊常用的热门话题，不断提升口语表达。', time: '10分钟' },
+          { function: '英语错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '10分钟' }
+        ] : [
+          { function: '英语错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '20分钟' },
+          { function: 'AI口语分级练', content: '用 AI 大模型生成的口语陪练教练，带你一起聊一聊常用的热门话题，不断提升口语表达。', time: '10分钟' },
+          { function: '英语校内同步练', content: '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度', time: '10分钟' }
+        ])
+      ]
+    });
+  }
+  // --- 2 HOUR TEMPLATE (Primary School, Grade 1-6) ---
   else if (is2Hour) {
     plan.push({
       day: '周一',
@@ -537,7 +1256,7 @@ const generateWeeklyPlan = (
           time: '25分钟' 
         },
         { function: '数学AI精准学（标准模式）', content: '检测最新学的知识点，对知识弱项进行针对性的提高（听视频课、做练习）', time: '20分钟' },
-        { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行“后台下载”，固化刚才学到的逻辑。', time: '10分钟' },
+        { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '10分钟' },
         { 
           function: isEnglishTop15 ? '英语重难点提分课' : '英语校内同步课', 
           content: isEnglishTop15 ? '英语重难点提分课' : '在上课前快速听一遍所学内容，可适当倍速，重点是对新知识形成大致印象', 
@@ -558,7 +1277,7 @@ const generateWeeklyPlan = (
         { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' },
         { function: '数学AI专属练', content: 'AI学习机会根据日常对你的了解，每天给你出10道它认为你最需要加强的题目', time: '15分钟' },
         { function: '数学重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '30分钟' },
-        { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行“后台下载”，固化刚才学到的逻辑。', time: '10分钟' },
+        { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '10分钟' },
         ...(isChineseTop15 ? [
           { function: '语文必考专项练', content: '是针对不同的考点来设计练习，并不是按照课本章节来进行的。适合基础较好，明确知道自己哪里有薄弱项的同学', time: '15分钟' },
           { function: '语文重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '25分钟' }
@@ -575,11 +1294,20 @@ const generateWeeklyPlan = (
         { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '10分钟' },
         { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' },
         { function: 'AI口算', content: '口算训练，保持对数字和运算的敏感', time: '10分钟' },
-        { function: '数学AI精准学（标准模式）', content: '检测最新学的知识点，对知识弱项进行针对性的提高（听视频课、做练习）', time: '20分钟' },
-        { function: '数学AI专属练', content: 'AI学习机会根据日常对你的了解，每天给你出10道它认为你最需要加强的题目', time: '15分钟' },
-        { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行“后台下载”，固化刚才学到的逻辑。', time: '10分钟' },
+        ...(isMathTop15 ? [
+          { function: '数学重难点提分课', content: '选择你目前认为最薄弱的一个内容来学习', time: '20分钟' },
+          { function: '数学AI专属练', content: 'AI学习机会根据日常对你的了解，每天给你出10道它认为你最需要加强的题目', time: '15分钟' }
+        ] : [
+          { function: '数学AI精准学（标准模式）', content: '检测最新学的知识点，对知识弱项进行针对性的提高（听视频课、做练习）', time: '20分钟' },
+          { function: '数学AI专属练', content: 'AI学习机会根据日常对你的了解，每天给你出10道它认为你最需要加强的题目', time: '15分钟' }
+        ]),
+        { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '10分钟' },
         { function: '英语AI听写', content: '每天新背的单词和课内要求背诵的单词必须用听写反复练习', time: '10分钟' },
-        { function: '英语重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '30分钟' }
+        {
+          function: isEnglishTop15 ? '英语重难点提分课' : '英语校内同步课',
+          content: isEnglishTop15 ? '选择你目前认为最薄弱的一个内容来学习' : '在上课前快速听一遍所学内容，可适当倍速，重点是对新知识形成大致印象',
+          time: '30分钟'
+        }
       ]
     });
     plan.push({
@@ -588,11 +1316,20 @@ const generateWeeklyPlan = (
         { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
         { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '10分钟' },
         { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' },
-        { function: '数学重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '35分钟' },
+        {
+          function: isMathTop15 ? '数学王牌拔尖课' : '数学校内同步课',
+          content: isMathTop15 ? '如果课内的内容都能听懂，平时成绩90分以上，可直接用王牌拔尖课来练习' : '在本周上课前快速听一遍将要学习的内容，可适当倍速，重点是对新知识形成大致印象',
+          time: '35分钟'
+        },
         { function: 'AI口算', content: '口算训练，保持对数字和运算的敏感', time: '10分钟' },
-        { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行“后台下载”，固化刚才学到的逻辑。', time: '10分钟' },
-        { function: '语文重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '25分钟' },
-        { function: '语文校内同步练', content: '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度', time: '15分钟' }
+        { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '10分钟' },
+        ...(isChineseTop15 ? [
+          { function: '语文重难点提分课', content: '选择你目前认为最薄弱的一个内容来学习', time: '25分钟' },
+          { function: '语文必考专项练', content: '是针对不同的考点来设计练习，并不是按照课本章节来进行的。适合基础较好，明确知道自己哪里有薄弱项的同学', time: '15分钟' }
+        ] : [
+          { function: '语文校内同步课', content: '在上课前快速听一遍所学内容，可适当倍速，重点是对新知识形成大致印象', time: '25分钟' },
+          { function: '语文校内同步练', content: '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度', time: '15分钟' }
+        ])
       ]
     });
     plan.push({
@@ -601,18 +1338,318 @@ const generateWeeklyPlan = (
         { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
         { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '10分钟' },
         { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' },
-        { function: '数学错题练', content: '“订正本周错题”和“攻克本周薄弱项”', time: '30分钟' },
-        { function: '数学AI专属练', content: 'AI学习机会根据日常对你的了解，每天给你出10道它认为你最需要加强的题目', time: '15分钟' },
-        { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行“后台下载”，固化刚才学到的逻辑。', time: '10分钟' },
+        { function: '数学错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '30分钟' },
+        {
+          function: isMathTop15 ? '数学必考专项练' : '数学AI专属练',
+          content: isMathTop15 ? '按照教学大纲拆分考点，专项突破提升，不是按照课本单元顺序来分。适合有一定基础的，知道自己薄弱项的学生有针对性的做练习' : 'AI学习机会根据日常对你的了解，每天给你出10道它认为你最需要加强的题目',
+          time: '15分钟'
+        },
+        { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '10分钟' },
         { function: '英语AI听写', content: '每天新背的单词和课内要求背诵的单词必须用听写反复练习', time: '10分钟' },
-        { function: '英语错题练', content: '“订正本周错题”和“攻克本周薄弱项”', time: '20分钟' },
+        {
+          function: isEnglishTop15 ? '英语必考专项练' : '英语错题练',
+          content: isEnglishTop15 ? '分成"日常知识积累"和"学期必考专项"，结合了不同年级学生应该掌握的知识点来安排。英语科目比较特别，全国各地区各教材版本进度差距较大，大家学习时不用受限于年级，按照自己进度来选就可以。' : '"订正本周错题"和"攻克本周薄弱项"',
+          time: '20分钟'
+        },
         { function: 'AI口语练', content: '任选一个对话内容，尽情聊天，一定要大声说出来，不要害羞', time: '10分钟' }
       ]
     });
   }
-  // --- 1 HOUR TEMPLATE (Grade 1-6) ---
-  else {
-    // Monday
+  // --- 1.5 HOUR TEMPLATE (High School, Grade 10-12) ---
+  // 结构：数学55分钟（2项）+ 强制休息10分钟 + 语文/英语20分钟 + 批改5分钟 = 90分钟
+  else if (is1_5Hour && isHighSchool) {
+    // 周一（数学+英语）
+    plan.push({
+      day: '周一',
+      items: [
+        { function: '数学校内同步课', content: '在本周上课前快速听一遍将要学习的内容，可适当倍速，重点是对新知识形成大致印象', time: '25分钟' },
+        { function: '数学重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '30分钟' },
+        { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '10分钟' },
+        { function: '英语校内同步课', content: '在上课前快速听一遍所学内容，可适当倍速，重点是对新知识形成大致印象', time: '20分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' }
+      ]
+    });
+
+    // 周二（数学+语文）
+    plan.push({
+      day: '周二',
+      items: [
+        { function: '数学AI精准学（标准模式）', content: '检测最新学的知识点，对知识弱项进行针对性的提高（听视频课、做练习）', time: '20分钟' },
+        { function: '数学错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '20分钟' },
+        { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '10分钟' },
+        { function: '语文校内同步课', content: '在上课前快速听一遍所学内容，可适当倍速，重点是对新知识形成大致印象', time: '25分钟' },
+        { function: '语文校内同步练', content: '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度', time: '10分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' }
+      ]
+    });
+
+    // 周三（数学+英语）
+    plan.push({
+      day: '周三',
+      items: [
+        { function: '数学重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '30分钟' },
+        { function: '数学必考专项练', content: '按照教学大纲拆分考点，专项突破提升，不是按照课本单元顺序来分。适合有一定基础的，知道自己薄弱项的学生有针对性的做练习', time: '25分钟' },
+        { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '10分钟' },
+        { function: '英语重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '20分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' }
+      ]
+    });
+
+    // 周四（数学+语文）
+    plan.push({
+      day: '周四',
+      items: [
+        { function: '数学王牌拔尖课', content: '如果课内的内容都能听懂，平时成绩90分以上，可直接用王牌拔尖课来练习', time: '30分钟' },
+        { function: '数学AI精准学（标准模式）', content: '检测最新学的知识点，对知识弱项进行针对性的提高（听视频课、做练习）', time: '25分钟' },
+        { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '10分钟' },
+        { function: '语文重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '20分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' }
+      ]
+    });
+
+    // 周五（数学+英语）
+    plan.push({
+      day: '周五',
+      items: [
+        { function: '数学错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '20分钟' },
+        { function: '数学必考专项练', content: '按照教学大纲拆分考点，专项突破提升，不是按照课本单元顺序来分。适合有一定基础的，知道自己薄弱项的学生有针对性的做练习', time: '20分钟' },
+        { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '10分钟' },
+        { function: '英语必考专项练', content: '分成"日常知识积累"和"学期必考专项"，结合了不同年级学生应该掌握的知识点来安排。英语科目比较特别，全国各地区各教材版本进度差距较大，大家学习时不用受限于年级，按照自己进度来选就可以。觉得简单了可以选择更高年级的内容来学习。', time: '20分钟' },
+        { function: '英语错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '15分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' }
+      ]
+    });
+  }
+  // --- 1.5 HOUR TEMPLATE (Middle School, Grade 7-9) W-5 ---
+  // 结构：前20分钟语言积累 + 5分钟全科批改 + 65分钟核心科目实战（2~3项，无AI口算）
+  else if (is1_5Hour && isMiddleSchool) {
+    // 周一（数学日）：背单词10分钟 + 语文AI听写10分钟 + 批改5分钟 + 数学实战65分钟
+    plan.push({
+      day: '周一',
+      items: [
+        { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+        { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '10分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' },
+        {
+          function: isMathTop15 ? '数学王牌拔尖课' : '数学校内同步课',
+          content: isMathTop15
+            ? '如果课内的内容都能听懂，平时成绩90分以上，可直接用王牌拔尖课来练习'
+            : '在本周上课前快速听一遍将要学习的内容，可适当倍速，重点是对新知识形成大致印象',
+          time: '25分钟'
+        },
+        {
+          function: isMathTop15 ? '数学AI专属练' : '数学校内同步练',
+          content: isMathTop15
+            ? 'AI学习机会根据日常对你的了解，每天给你出10道它认为你最需要加强的题目'
+            : '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度',
+          time: '20分钟'
+        },
+        { function: '数学AI精准学（标准模式）', content: '检测最新学的知识点，对知识弱项进行针对性的提高（听视频课、做练习）', time: '20分钟' }
+      ]
+    });
+
+    // 周二（英语日）：背单词10分钟 + 英语AI听写10分钟 + 批改5分钟 + 英语实战65分钟
+    plan.push({
+      day: '周二',
+      items: [
+        { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+        { function: '英语AI听写', content: '每天新背的单词和课内要求背诵的单词必须用听写反复练习', time: '10分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' },
+        {
+          function: isEnglishTop15 ? '英语重难点提分课' : '英语校内同步课',
+          content: isEnglishTop15
+            ? '选择你目前认为做薄弱的一个内容来学习'
+            : '在上课前快速听一遍所学内容，可适当倍速，重点是对新知识形成大致印象',
+          time: '25分钟'
+        },
+        {
+          function: '英语校内同步练',
+          content: isEnglishTop15
+            ? '选择同步练难度中或高的，可以根据自己的体验选择稍有挑战的难度'
+            : '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度',
+          time: '25分钟'
+        },
+        { function: '英语错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '15分钟' }
+      ]
+    });
+
+    // 周三（语文日）：语文AI听写10分钟 + 背单词10分钟 + 批改5分钟 + 语文实战65分钟
+    plan.push({
+      day: '周三',
+      items: [
+        { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '10分钟' },
+        { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' },
+        ...(isChineseTop15 ? [
+          { function: '语文必考专项练', content: '是针对不同的考点来设计练习，并不是按照课本章节来进行的。适合基础较好，明确知道自己哪里有薄弱项的同学', time: '20分钟' },
+          { function: '语文重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '25分钟' },
+          { function: '数学AI精准学（标准模式）', content: '检测最新学的知识点，对知识弱项进行针对性的提高（听视频课、做练习）', time: '20分钟' }
+        ] : [
+          { function: '语文校内同步课', content: '在上课前快速听一遍所学内容，可适当倍速，重点是对新知识形成大致印象', time: '30分钟' },
+          { function: '语文校内同步练', content: '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度', time: '20分钟' },
+          { function: '数学AI精准学（标准模式）', content: '检测最新学的知识点，对知识弱项进行针对性的提高（听视频课、做练习）', time: '15分钟' }
+        ])
+      ]
+    });
+
+    // 周四（数学日）：背单词10分钟 + 语文AI听写10分钟 + 批改5分钟 + 数学实战65分钟
+    plan.push({
+      day: '周四',
+      items: [
+        { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+        { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '10分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' },
+        { function: '数学必考专项练', content: '按照教学大纲拆分考点，专项突破提升，不是按照课本单元顺序来分。适合有一定基础的，知道自己薄弱项的学生有针对性的做练习', time: '25分钟' },
+        { function: '数学AI精准学（标准模式）', content: '检测最新学的知识点，对知识弱项进行针对性的提高（听视频课、做练习）', time: '20分钟' },
+        { function: '数学错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '20分钟' }
+      ]
+    });
+
+    // 周五（英语日）：背单词10分钟 + 英语AI听写10分钟 + 批改5分钟 + 英语实战65分钟
+    plan.push({
+      day: '周五',
+      items: [
+        { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+        { function: '英语AI听写', content: '每天新背的单词和课内要求背诵的单词必须用听写反复练习', time: '10分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' },
+        { function: '英语重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '35分钟' },
+        { function: '英语必考专项练', content: '分成"日常知识积累"和"学期必考专项"，结合了不同年级学生应该掌握的知识点来安排。英语科目比较特别，全国各地区各教材版本进度差距较大，大家学习时不用受限于年级，按照自己进度来选就可以。', time: '20分钟' },
+        { function: '数学AI精准学（标准模式）', content: '检测最新学的知识点，对知识弱项进行针对性的提高（听视频课、做练习）', time: '10分钟' }
+      ]
+    });
+  }
+  // --- 1 HOUR TEMPLATE (High School, Grade 10-12) ---
+  else if (is1Hour && isHighSchool) {
+    // 周一：数学
+    plan.push({
+      day: '周一',
+      items: [
+        { function: '数学AI精准学（标准模式）', content: '检测最新学的知识点，对知识弱项进行针对性的提高', time: '15分钟' },
+        { function: '数学错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '10分钟' },
+        { function: '数学校内同步练', content: '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度', time: '30分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把所有日常作业拍照上传到学习机', time: '5分钟' }
+      ]
+    });
+
+    // 周二：英语
+    plan.push({
+      day: '周二',
+      items: [
+        { function: '英语校内同步课', content: '在上课前快速听一遍所学内容，可适当倍速，重点是对新知识形成大致印象', time: '30分钟' },
+        { function: '英语校内同步练', content: '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度', time: '25分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把所有日常作业拍照上传到学习机', time: '5分钟' }
+      ]
+    });
+
+    // 周三：语文
+    plan.push({
+      day: '周三',
+      items: [
+        { function: '语文校内同步课', content: '在上课前快速听一遍所学内容，可适当倍速，重点是对新知识形成大致印象', time: '30分钟' },
+        { function: '语文校内同步练', content: '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度', time: '25分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把所有日常作业拍照上传到学习机', time: '5分钟' }
+      ]
+    });
+
+    // 周四：数学
+    plan.push({
+      day: '周四',
+      items: [
+        { function: '数学必考专项练', content: '按照教学大纲拆分考点，专项突破提升，不是按照课本单元顺序来分。适合有一定基础的，知道自己薄弱项的学生有针对性的做练习', time: '40分钟' },
+        { function: '数学错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '15分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把所有日常作业拍照上传到学习机', time: '5分钟' }
+      ]
+    });
+
+    // 周五：英语
+    plan.push({
+      day: '周五',
+      items: [
+        { function: '英语必考专项练', content: '分成"日常知识积累"和"学期必考专项"，结合了不同年级学生应该掌握的知识点来安排。英语科目比较特别，全国各地区各教材版本进度差距较大，大家学习时不用受限于年级，按照自己进度来选就可以。觉得简单了可以选择更高年级的内容来学习。', time: '25分钟' },
+        { function: '英语重难点提分课', content: '根据学生自己的进度选择来学，自然拼读、语法精讲、分级阅读这几项内容都是很重要，需要掌握的。学生可以自行安排每周穿插来学', time: '30分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把所有日常作业拍照上传到学习机', time: '5分钟' }
+      ]
+    });
+  }
+  // --- 1 HOUR TEMPLATE (Middle School, Grade 7-9) ---
+  else if (is1Hour && isMiddleSchool) {
+    // 周一：数学
+    plan.push({
+      day: '周一',
+      items: [
+        { function: '（全科）全科批改/智慧眼', content: '把所有日常作业拍照上传到学习机', time: '5分钟' },
+        {
+          function: isMathTop15 ? '数学王牌拔尖课' : '数学校内同步课',
+          content: isMathTop15
+            ? '如果课内的内容都能听懂，平时成绩90分以上，可直接用王牌拔尖课来练习'
+            : '在本周上课前快速听一遍将要学习的内容，可适当倍速，重点是对新知识形成大致印象',
+          time: '25分钟'
+        },
+        { function: '数学AI精准学（标准模式）', content: '检测最新学的知识点，对知识弱项进行针对性的提高（听视频课、做练习）', time: '20分钟' },
+        { function: '数学AI专属练', content: 'AI学习机会根据日常对你的了解，每天给你出10道它认为你最需要加强的题目', time: '10分钟' }
+      ]
+    });
+
+    // 周二：英语
+    plan.push({
+      day: '周二',
+      items: [
+        { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把所有日常作业拍照上传到学习机', time: '5分钟' },
+        {
+          function: isEnglishTop15 ? '英语重难点提分课' : '英语校内同步课',
+          content: isEnglishTop15
+            ? '选择你目前认为做薄弱的一个内容来学习'
+            : '在上课前快速听一遍所学内容，可适当倍速，重点是对新知识形成大致印象',
+          time: '30分钟'
+        },
+        { function: '英语校内同步练', content: '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度', time: '15分钟' }
+      ]
+    });
+
+    // 周三：语文
+    plan.push({
+      day: '周三',
+      items: [
+        { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '10分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把所有日常作业拍照上传到学习机', time: '5分钟' },
+        ...(isChineseTop15 ? [
+          { function: '语文必考专项练', content: '是针对不同的考点来设计练习，并不是按照课本章节来进行的。适合基础较好，明确知道自己哪里有薄弱项的同学', time: '20分钟' },
+          { function: '语文重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '25分钟' }
+        ] : [
+          { function: '语文校内同步课', content: '在上课前快速听一遍所学内容，可适当倍速，重点是对新知识形成大致印象', time: '25分钟' },
+          { function: '语文校内同步练', content: '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度', time: '20分钟' }
+        ])
+      ]
+    });
+
+    // 周四：数学
+    plan.push({
+      day: '周四',
+      items: [
+        { function: '（全科）全科批改/智慧眼', content: '把所有日常作业拍照上传到学习机', time: '5分钟' },
+        { function: '数学必考专项练', content: '按照教学大纲拆分考点，专项突破提升，不是按照课本单元顺序来分。适合有一定基础的，知道自己薄弱项的学生有针对性的做练习', time: '30分钟' },
+        { function: '数学错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '15分钟' },
+        { function: '数学AI精准学（标准模式）', content: '检测最新学的知识点，对知识弱项进行针对性的提高（听视频课、做练习）', time: '10分钟' }
+      ]
+    });
+
+    // 周五：英语
+    plan.push({
+      day: '周五',
+      items: [
+        { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+        { function: '英语AI听写', content: '每天新背的单词和课内要求背诵的单词必须用听写反复练习', time: '10分钟' },
+        { function: '（全科）全科批改/智慧眼', content: '把所有日常作业拍照上传到学习机', time: '5分钟' },
+        { function: '英语重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '25分钟' }
+      ]
+    });
+  }
+  // --- 1.5 HOUR TEMPLATE (Grade 1-6) ---
+  // 结构：前20分钟语言积累 + 5分钟全科批改 + 65分钟核心科目实战（2~3项）
+  // 周四积累段：背单词10分钟 + AI口算10分钟（小学专属，初中/高中无此功能）
+  else if (is1_5Hour && isPrimary) {
+    // 周一（数学日）：背单词10分钟 + 语文AI听写10分钟 + 批改5分钟 + 数学实战65分钟
     const monItems = [
       { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
       { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '10分钟' },
@@ -620,14 +1657,14 @@ const generateWeeklyPlan = (
       { 
         function: isMathTop15 ? '数学重难点提分课' : '数学校内同步课', 
         content: isMathTop15 ? '选择你目前认为做薄弱的一个内容来学习' : '在本周上课前快速听一遍将要学习的内容，可适当倍速，重点是对新知识形成大致印象', 
-        time: '30分钟' 
+        time: '25分钟' 
       },
-      { function: '数学AI专属练', content: 'AI学习机会根据日常对你的了解，每天给你出10道它认为你最需要加强的题目', time: '15分钟' },
+      { function: '数学AI专属练', content: 'AI学习机会根据日常对你的了解，每天给你出10道它认为你最需要加强的题目', time: '20分钟' },
       { function: '数学AI精准学（标准模式）', content: '检测最新学的知识点，对知识弱项进行针对性的提高（听视频课、做练习）', time: '20分钟' }
     ];
     plan.push({ day: '周一', items: monItems });
 
-    // Tuesday
+    // 周二（英语日）：背单词10分钟 + 英语AI听写10分钟 + 批改5分钟 + 英语实战65分钟
     const tueItems = [
       { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
       { function: '英语AI听写', content: '每天新背的单词和课内要求背诵的单词必须用听写反复练习', time: '10分钟' },
@@ -635,18 +1672,96 @@ const generateWeeklyPlan = (
       { 
         function: isEnglishTop15 ? '英语重难点提分课' : '英语校内同步课', 
         content: isEnglishTop15 ? '选择你目前认为做薄弱的一个内容来学习' : '在上课前快速听一遍所学内容，可适当倍速，重点是对新知识形成大致印象', 
-        time: '35分钟' 
+        time: '30分钟' 
       },
       { 
         function: '英语校内同步练', 
         content: isEnglishTop15 ? '选择同步练难度中或高的，可以根据自己的体验选择稍有挑战的难度' : '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度', 
-        time: '20分钟' 
+        time: '25分钟' 
       },
       { function: 'AI口语练', content: '任选一个对话内容，尽情聊天，一定要大声说出来，不要害羞', time: '10分钟' }
     ];
     plan.push({ day: '周二', items: tueItems });
 
-    // Wednesday
+    // 周三（语文日）：语文AI听写10分钟 + 背单词10分钟 + 批改5分钟 + 语文实战65分钟
+    const wedItems = [
+      { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '10分钟' },
+      { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+      { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' },
+      ...(isChineseTop15 ? [
+        { function: '语文必考专项练', content: '是针对不同的考点来设计练习，并不是按照课本章节来进行的。适合基础较好，明确知道自己哪里有薄弱项的同学', time: '25分钟' },
+        { function: '语文重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '40分钟' }
+      ] : [
+        { function: '语文校内同步课', content: '在上课前快速听一遍所学内容，可适当倍速，重点是对新知识形成大致印象', time: '30分钟' },
+        { function: '语文校内同步练', content: '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度', time: '20分钟' },
+        { function: '语文重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '15分钟' }
+      ])
+    ];
+    plan.push({ day: '周三', items: wedItems });
+
+    // 周四（数学日）：背单词10分钟 + AI口算10分钟（小学专属）+ 批改5分钟 + 数学实战65分钟
+    const thuItems = [
+      { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+      { function: 'AI口算', content: '口算训练，保持对数字和运算的敏感。小学专属功能，每天10分钟坚持练习', time: '10分钟' },
+      { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' },
+      {
+        function: isMathTop15 ? '数学王牌拔尖课' : '数学重难点提分课',
+        content: isMathTop15 ? '如果课内的内容都能听懂，平时成绩90分以上，可直接用王牌拔尖课来练习' : '选择你目前认为做薄弱的一个内容来学习',
+        time: '30分钟'
+      },
+      { function: '数学AI专属练', content: 'AI学习机会根据日常对你的了解，每天给你出10道它认为你最需要加强的题目', time: '20分钟' },
+      { function: '数学AI精准学（标准模式）', content: '检测最新学的知识点，对知识弱项进行针对性的提高（听视频课、做练习）', time: '15分钟' }
+    ];
+    plan.push({ day: '周四', items: thuItems });
+
+    // 周五（英语日）：背单词10分钟 + 英语AI听写10分钟 + 批改5分钟 + 英语实战65分钟
+    const friItems = [
+      { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+      { function: '英语AI听写', content: '每天新背的单词和课内要求背诵的单词必须用听写反复练习', time: '10分钟' },
+      { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' },
+      { function: '英语重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '35分钟' },
+      { function: '英语错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '20分钟' },
+      { function: 'AI口语练', content: '任选一个对话内容，尽情聊天，一定要大声说出来，不要害羞', time: '10分钟' }
+    ];
+    plan.push({ day: '周五', items: friItems });
+  }
+  // --- 1 HOUR TEMPLATE (Grade 1-6) ---
+  else if (is1Hour && isPrimary) {
+    // 周一
+    const monItems = [
+      { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+      { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '10分钟' },
+      { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' },
+      {
+        function: isMathTop15 ? '数学重难点提分课' : '数学校内同步课',
+        content: isMathTop15 ? '选择你目前认为做薄弱的一个内容来学习' : '在本周上课前快速听一遍将要学习的内容，可适当倍速，重点是对新知识形成大致印象',
+        time: '30分钟'
+      },
+      { function: '数学AI专属练', content: 'AI学习机会根据日常对你的了解，每天给你出10道它认为你最需要加强的题目', time: '15分钟' },
+      { function: '数学AI精准学（标准模式）', content: '检测最新学的知识点，对知识弱项进行针对性的提高（听视频课、做练习）', time: '20分钟' }
+    ];
+    plan.push({ day: '周一', items: monItems });
+
+    // 周二
+    const tueItems = [
+      { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+      { function: '英语AI听写', content: '每天新背的单词和课内要求背诵的单词必须用听写反复练习', time: '10分钟' },
+      { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' },
+      {
+        function: isEnglishTop15 ? '英语重难点提分课' : '英语校内同步课',
+        content: isEnglishTop15 ? '选择你目前认为做薄弱的一个内容来学习' : '在上课前快速听一遍所学内容，可适当倍速，重点是对新知识形成大致印象',
+        time: '35分钟'
+      },
+      {
+        function: '英语校内同步练',
+        content: isEnglishTop15 ? '选择同步练难度中或高的，可以根据自己的体验选择稍有挑战的难度' : '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度',
+        time: '20分钟'
+      },
+      { function: 'AI口语练', content: '任选一个对话内容，尽情聊天，一定要大声说出来，不要害羞', time: '10分钟' }
+    ];
+    plan.push({ day: '周二', items: tueItems });
+
+    // 周三
     const wedItems = [
       { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '15分钟' },
       { function: '天天背单词', content: '坚持5分钟背单词', time: '5分钟' },
@@ -662,7 +1777,7 @@ const generateWeeklyPlan = (
     ];
     plan.push({ day: '周三', items: wedItems });
 
-    // Thursday
+    // 周四
     const thuItems = [
       { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
       ...(isMathTop15 ? [
@@ -679,109 +1794,387 @@ const generateWeeklyPlan = (
     ];
     plan.push({ day: '周四', items: thuItems });
 
-    // Friday
-    const friItems = [
+    // 周五
+    const friItems2 = [
       { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
       { function: '英语AI听写', content: '每天新背的单词和课内要求背诵的单词必须用听写反复练习', time: '10分钟' },
       { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' },
       { function: '英语重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '35分钟' },
-      { function: '英语错题练', content: '“订正本周错题”和“攻克本周薄弱项”', time: '20分钟' },
+      { function: '英语错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '20分钟' },
       { function: 'AI口语练', content: '任选一个对话内容，尽情聊天，一定要大声说出来，不要害羞', time: '10分钟' }
     ];
-    plan.push({ day: '周五', items: friItems });
+    plan.push({ day: '周五', items: friItems2 });
   }
 
   // --- WEEKEND TEMPLATE ---
   if (plan.length > 0) {
-    // --- 3 HOUR WEEKEND (Primary Only) ---
-    if (isWeekend3Hour && isPrimary) {
-      // Saturday: Language Accumulation + Math, English
-      const sat3h = [
-        { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
-        { function: '英语AI听写', content: '每天新背的单词和课内要求背诵的单词必须用听写反复练习', time: '10分钟' },
-        { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '10分钟' },
-        { function: '数学重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '30分钟' },
-        { function: '数学必考专项练', content: '按照教学大纲拆分考点，专项突破提升，不是按照课本单元顺序来分。适合有一定基础的，知道自己薄弱项的学生有针对性的做练习', time: '20分钟' },
-        { function: '数学AI精准学（备考模式）', content: '检测本单元所有知识点的掌握情况，是考试前的自我摸底。掌握不扎实的考点需要自己安排时间进行专项练习。', time: '20分钟' },
-        { function: '强制休息', content: '离开书桌，喝水、远眺，固化逻辑', time: '15分钟' },
-        { function: '英语校内同步课', content: '提前听一遍下周将要学习的内容，重点形成印象', time: '30分钟' },
-        { function: '英语趣味分级练', content: '学而思自研4级分层闯关，阶梯晋级', time: '20分钟' },
-        { function: '英语AI精准学（备考模式）', content: '检测本单元知识点掌握情况，考试前自我摸底', time: '15分钟' }
-      ];
-      plan.push({ day: '周六', items: sat3h });
 
-      // Sunday: Language Accumulation + Math, Chinese
-      const sun3h = [
-        { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
-        { function: '英语AI听写', content: '每天新背的单词和课内要求背诵的单词必须用听写反复练习', time: '10分钟' },
-        { function: '语文AI听写或AI背诵', content: '优先AI背诵（课文），若背完则听写对应字词', time: '10分钟' },
-        { 
-          function: isMathTop15 ? '数学王牌拔尖课' : '数学校内同步课', 
-          content: isMathTop15 ? '适合基础扎实，日常考试成绩保持在90分以上的学生' : '提前听一遍下周将要学习的内容，重点形成印象', 
-          time: '30分钟' 
-        },
-        { 
-          function: isMathTop15 ? '数学王牌教辅练' : '数学校内同步练', 
-          content: isMathTop15 ? '不一定是选择《53》，学生如果有平时在练习其他教辅书也可以' : '同步练难度分为低、中、高，选择稍有挑战的难度', 
-          time: '20分钟' 
-        },
-        { function: '数学错题练', content: '“订正本周错题”和“攻克本周薄弱项”', time: '20分钟' },
-        { function: '强制休息', content: '离开书桌，喝水、远眺，固化逻辑', time: '15分钟' },
-        { 
-          function: isChineseTop15 ? '语文重难点提分课' : '语文校内同步课', 
-          content: isChineseTop15 ? '根据学生自己的进度选择来学，阅读专项、基础知识、作文这几项内容都是很重要，需要掌握的。学生可以自行安排每周穿插来学' : '提前听一遍下周将要学习的内容，重点形成印象', 
-          time: '30分钟' 
-        },
-        { function: '语文趣味分级练', content: '学而思自研4级分层闯关，阶梯晋级', time: '20分钟' },
-        { function: '语文AI精准学（备考模式）', content: '检测本单元知识点掌握情况，考试前自我摸底', time: '15分钟' }
-      ];
-      plan.push({ day: '周日', items: sun3h });
+    // --- 高中 2小时周末 ---
+    if (isWeekend2Hour && isHighSchool) {
+      // 周六：数学 + 英语
+      plan.push({
+        day: '周六',
+        items: [
+          { function: '数学重难点提分课', content: '选择你目前认为最薄弱的一个内容来学习', time: '35分钟' },
+          { function: '数学必考专项练', content: '按照教学大纲拆分考点，专项突破提升，不是按照课本单元顺序来分。适合有一定基础的，知道自己薄弱项的学生有针对性的做练习', time: '25分钟' },
+          { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '10分钟' },
+          { function: '英语重难点提分课', content: '根据学生自己的进度选择来学，自然拼读、语法精讲、分级阅读这几项内容都是很重要，需要掌握的。学生可以自行安排每周穿插来学', time: '25分钟' },
+          { function: '英语必考专项练', content: '分成"日常知识积累"和"学期必考专项"，结合了不同年级学生应该掌握的知识点来安排。英语科目比较特别，全国各地区各教材版本进度差距较大，大家学习时不用受限于年级，按照自己进度来选就可以。觉得简单了可以选择更高年级的内容来学习。', time: '25分钟' }
+        ]
+      });
+      // 周日：数学 + 语文
+      plan.push({
+        day: '周日',
+        items: [
+          { function: '数学AI精准学（备考模式）', content: '检测本单元所有知识点的掌握情况，是考试前的自我摸底。掌握不扎实的考点需要自己安排时间进行专项练习。', time: '30分钟' },
+          { function: '数学错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '20分钟' },
+          { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '10分钟' },
+          { function: '语文重难点提分课', content: '根据学生自己的进度选择来学，阅读专项、基础知识、作文这几项内容都是很重要，需要掌握的。学生可以自行安排每周穿插来学', time: '30分钟' },
+          { function: '语文必考专项练', content: '包括基础知识和阅读专项，学生可以根据自己的情况选择薄弱项来练习巩固', time: '30分钟' }
+        ]
+      });
     }
-    // --- 2 HOUR WEEKEND (Grade 1-9) ---
-    else if (isWeekend2Hour) {
-      // Saturday: Math focused
-      const sat2h = [
-        { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
-        { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '10分钟' },
-        { function: '数学重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '35分钟' },
-        { function: '数学AI专属练', content: 'AI学习机会根据日常对你的了解，每天给你出10道它认为你最需要加强的题目', time: '15分钟' },
-        { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行“后台下载”，固化刚才学到的逻辑。', time: '10分钟' },
-        { function: '数学必考专项练', content: '按照教学大纲拆分考点，专项突破提升，不是按照课本单元顺序来分。适合有一定基础的，知道自己薄弱项的学生有针对性的做练习', time: '20分钟' },
-        { function: '数学AI精准学（备考模式）', content: '检测本单元所有知识点的掌握情况，是考试前的自我摸底。掌握不扎实的考点需要自己安排时间进行专项练习。', time: '20分钟' }
-      ];
-      plan.push({ day: '周六', items: sat2h });
 
-      // Sunday: Liberal Arts focused
-      const sun2h = [
-        { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
-        { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '10分钟' },
-        { function: '英语重难点提分课', content: '根据学生自己的进度选择来学，自然拼读、语法精讲、分级阅读这几项内容都是很重要，需要掌握的。学生可以自行安排每周穿插来学', time: '35分钟' },
-        { function: '英语必考专项练', content: '分成“日常知识积累”和“学期必考专项”，结合了不同年级学生应该掌握的知识点来安排。英语科目比较特别，全国各地区各教材版本进度差距较大，大家学习时不用受限于年级，按照自己进度来选就可以。觉得简单了可以选择更高年级的内容来学习。', time: '20分钟' },
-        { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行“后台下载”，固化刚才学到的逻辑。', time: '10分钟' },
-        { function: '语文趣味分级练', content: '学完一整个单元后练这个。学而思自研4级分层闯关，阶梯晋级', time: '20分钟' },
-        { function: '语文AI精准学（备考模式）', content: '检测本单元所有知识点的掌握情况，是考试前的自我摸底。掌握不扎实的考点需要自己安排时间进行专项练习。', time: '15分钟' }
-      ];
-      plan.push({ day: '周日', items: sun2h });
+    // --- 初中 2小时周末 ---
+    if (isWeekend2Hour && isMiddleSchool) {
+      // 周六：语言积累 + 数学、英语
+      plan.push({
+        day: '周六',
+        items: [
+          { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+          { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '10分钟' },
+          { function: '数学重难点提分课', content: '选择你目前认为最薄弱的一个内容来学习', time: '35分钟' },
+          { function: '数学AI专属练', content: 'AI学习机会根据日常对你的了解，每天给你出10道它认为你最需要加强的题目', time: '15分钟' },
+          { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '10分钟' },
+          { function: '英语重难点提分课', content: '根据学生自己的进度选择来学，自然拼读、语法精讲、分级阅读这几项内容都是很重要，需要掌握的。学生可以自行安排每周穿插来学', time: '20分钟' },
+          { function: '英语必考专项练', content: '分成"日常知识积累"和"学期必考专项"，结合了不同年级学生应该掌握的知识点来安排。英语科目比较特别，全国各地区各教材版本进度差距较大，大家学习时不用受限于年级，按照自己进度来选就可以。觉得简单了可以选择更高年级的内容来学习。', time: '20分钟' }
+        ]
+      });
+      // 周日：语言积累 + 数学、语文
+      plan.push({
+        day: '周日',
+        items: [
+          { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+          { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '10分钟' },
+          { function: '数学必考专项练', content: '按照教学大纲拆分考点，专项突破提升，不是按照课本单元顺序来分。适合有一定基础的，知道自己薄弱项的学生有针对性的做练习', time: '20分钟' },
+          { function: '数学AI精准学（备考模式）', content: '检测本单元所有知识点的掌握情况，是考试前的自我摸底。掌握不扎实的考点需要自己安排时间进行专项练习。', time: '20分钟' },
+          { function: '数学错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '10分钟' },
+          { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '10分钟' },
+          { function: '语文趣味分级练', content: '学完一整个单元后练这个。学而思自研4级分层闯关，阶梯晋级', time: '20分钟' },
+          { function: '语文AI精准学（备考模式）', content: '检测本单元所有知识点的掌握情况，是考试前的自我摸底。掌握不扎实的考点需要自己安排时间进行专项练习。', time: '20分钟' }
+        ]
+      });
     }
-    // --- DEFAULT WEEKEND (1 Hour or fallback) ---
-    else {
-      // Saturday: Math
-      const satItems = [
-        { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '15分钟' },
-        { function: '数学AI精准学（备考模式）', content: '检测本单元所有知识点的掌握情况，是考试前的自我摸底。掌握不扎实的考点需要自己安排时间进行专项练习。', time: '30分钟' },
-        { function: '数学AI专属练', content: 'AI学习机会根据日常对你的了解，每天给你出10道它认为你最需要加强的题目', time: '15分钟' }
-      ];
-      plan.push({ day: '周六', items: satItems });
 
-      // Sunday: Reading
-      const sunItems = [
-        { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
-        { function: '英语AI听写', content: '每天新背的单词和课内要求背诵的单词必须用听写反复练习', time: '5分钟' },
-        { function: '英语AI精准学（标准模式）', content: '检测本单元所有知识点的掌握情况，是考试前的自我摸底。掌握不扎实的考点需要自己安排时间进行专项练习。', time: '20分钟' },
-        { function: '英语重难点提分课', content: '根据学生自己的进度选择来学，自然拼读、语法精讲、分级阅读这几项内容都是很重要，需要掌握的。学生可以自行安排每周穿插来学', time: '25分钟' }
-      ];
-      plan.push({ day: '周日', items: sunItems });
+    // --- 小学 2小时周末 ---
+    if (isWeekend2Hour && isPrimary) {
+      // 周六：语言积累 + 数学、英语
+      plan.push({
+        day: '周六',
+        items: [
+          { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+          { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '10分钟' },
+          { function: '数学重难点提分课', content: '选择你目前认为最薄弱的一个内容来学习', time: '35分钟' },
+          { function: '数学AI专属练', content: 'AI学习机会根据日常对你的了解，每天给你出10道它认为你最需要加强的题目', time: '15分钟' },
+          { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '10分钟' },
+          { function: '英语重难点提分课', content: '根据学生自己的进度选择来学，自然拼读、语法精讲、分级阅读这几项内容都是很重要，需要掌握的。学生可以自行安排每周穿插来学', time: '20分钟' },
+          { function: '英语必考专项练', content: '分成"日常知识积累"和"学期必考专项"，结合了不同年级学生应该掌握的知识点来安排。英语科目比较特别，全国各地区各教材版本进度差距较大，大家学习时不用受限于年级，按照自己进度来选就可以。觉得简单了可以选择更高年级的内容来学习。', time: '20分钟' }
+        ]
+      });
+      // 周日：语言积累 + 数学、语文
+      plan.push({
+        day: '周日',
+        items: [
+          { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+          { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '10分钟' },
+          { function: '数学必考专项练', content: '按照教学大纲拆分考点，专项突破提升，不是按照课本单元顺序来分。适合有一定基础的，知道自己薄弱项的学生有针对性的做练习', time: '20分钟' },
+          { function: '数学AI精准学（备考模式）', content: '检测本单元所有知识点的掌握情况，是考试前的自我摸底。掌握不扎实的考点需要自己安排时间进行专项练习。', time: '20分钟' },
+          { function: '数学错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '10分钟' },
+          { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '10分钟' },
+          { function: '语文趣味分级练', content: '学完一整个单元后练这个。学而思自研4级分层闯关，阶梯晋级', time: '20分钟' },
+          { function: '语文AI精准学（备考模式）', content: '检测本单元所有知识点的掌握情况，是考试前的自我摸底。掌握不扎实的考点需要自己安排时间进行专项练习。', time: '20分钟' }
+        ]
+      });
     }
+
+    // --- 高中 1小时周末 ---
+    if (isWeekend1Hour && isHighSchool) {
+      // 周六：数学
+      plan.push({
+        day: '周六',
+        items: [
+          { function: '数学重难点提分课', content: '选择你目前认为最薄弱的一个内容来学习', time: '30分钟' },
+          { function: '数学必考专项练', content: '按照教学大纲拆分考点，专项突破提升，不是按照课本单元顺序来分。适合有一定基础的，知道自己薄弱项的学生有针对性的做练习', time: '30分钟' }
+        ]
+      });
+      // 周日：英语
+      plan.push({
+        day: '周日',
+        items: [
+          { function: '英语重难点提分课', content: '选择你目前认为最薄弱的一个内容来学习', time: '30分钟' },
+          { function: '英语必考专项练', content: '按照教学大纲拆分考点，专项突破提升，不是按照课本单元顺序来分。适合有一定基础的，知道自己薄弱项的学生有针对性的做练习', time: '30分钟' }
+        ]
+      });
+    }
+
+    // --- 初中 1小时周末 ---
+    if (isWeekend1Hour && isMiddleSchool) {
+      // 周六：语言积累 + 数学
+      plan.push({
+        day: '周六',
+        items: [
+          { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '15分钟' },
+          { function: '数学AI精准学（备考模式）', content: '检测本单元所有知识点的掌握情况，是考试前的自我摸底。掌握不扎实的考点需要自己安排时间进行专项练习。', time: '30分钟' },
+          { function: '数学AI专属练', content: 'AI学习机会根据日常对你的了解，每天给你出10道它认为你最需要加强的题目', time: '15分钟' }
+        ]
+      });
+      // 周日：语言积累 + 深度阅读
+      plan.push({
+        day: '周日',
+        items: [
+          { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+          { function: '英语AI听写', content: '每天新背的单词和课内要求背诵的单词必须用听写反复练习', time: '5分钟' },
+          { function: '英语AI精准学（标准模式）', content: '检测本单元所有知识点的掌握情况，是考试前的自我摸底。掌握不扎实的考点需要自己安排时间进行专项练习。', time: '20分钟' },
+          { function: '英语重难点提分课', content: '根据学生自己的进度选择来学，自然拼读、语法精讲、分级阅读这几项内容都是很重要，需要掌握的。学生可以自行安排每周穿插来学', time: '25分钟' }
+        ]
+      });
+    }
+
+    // --- 小学 1小时周末 ---
+    if (isWeekend1Hour && isPrimary) {
+      // 周六：语言积累 + 数学
+      plan.push({
+        day: '周六',
+        items: [
+          { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '15分钟' },
+          { function: '数学AI精准学（备考模式）', content: '检测本单元所有知识点的掌握情况，是考试前的自我摸底。掌握不扎实的考点需要自己安排时间进行专项练习。', time: '30分钟' },
+          { function: '数学AI专属练', content: 'AI学习机会根据日常对你的了解，每天给你出10道它认为你最需要加强的题目', time: '15分钟' }
+        ]
+      });
+      // 周日：语言积累 + 深度阅读
+      plan.push({
+        day: '周日',
+        items: [
+          { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+          { function: '英语AI听写', content: '每天新背的单词和课内要求背诵的单词必须用听写反复练习', time: '5分钟' },
+          { function: '英语AI精准学（标准模式）', content: '检测本单元所有知识点的掌握情况，是考试前的自我摸底。掌握不扎实的考点需要自己安排时间进行专项练习。', time: '20分钟' },
+          { function: '英语重难点提分课', content: '根据学生自己的进度选择来学，自然拼读、语法精讲、分级阅读这几项内容都是很重要，需要掌握的。学生可以自行安排每周穿插来学', time: '25分钟' }
+        ]
+      });
+    }
+
+    // --- 小学 3小时 后85% ---
+    if (isWeekend3Hour && isPrimary && !isMathTop15 && !isChineseTop15 && !isEnglishTop15) {
+      // 周六：语言积累 + 数学、英语
+      plan.push({
+        day: '周六',
+        items: [
+          { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+          { function: '英语AI听写', content: '每天新背的单词和课内要求背诵的单词必须用听写反复练习', time: '10分钟' },
+          { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '10分钟' },
+          { function: '数学重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '30分钟' },
+          { function: '数学必考专项练', content: '按照教学大纲拆分考点，专项突破提升，不是按照课本单元顺序来分。适合有一定基础的，知道自己薄弱项的学生有针对性的做练习', time: '20分钟' },
+          { function: '数学AI精准学（备考模式）', content: '检测本单元所有知识点的掌握情况，是考试前的自我摸底。掌握不扎实的考点需要自己安排时间进行专项练习。', time: '20分钟' },
+          { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 15 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '15分钟' },
+          { function: '英语校内同步课', content: '在上课前快速听一遍所学内容，可适当倍速，重点是对新知识形成大致印象', time: '30分钟' },
+          { function: '英语趣味分级练', content: '学完一整个单元后练这个。学而思自研4级分层闯关，阶梯晋级', time: '20分钟' },
+          { function: '英语AI精准学（标准模式）', content: '检测本单元所有知识点的掌握情况，是考试前的自我摸底。掌握不扎实的考点需要自己安排时间进行专项练习。', time: '15分钟' }
+        ]
+      });
+      // 周日：语言积累 + 数学（同步）、语文（同步）
+      plan.push({
+        day: '周日',
+        items: [
+          { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+          { function: '英语AI听写', content: '每天新背的单词和课内要求背诵的单词必须用听写反复练习', time: '10分钟' },
+          { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '10分钟' },
+          { function: '数学校内同步课', content: '提前听一遍下周将要学习的内容，可适当倍速，重点是对新知识形成大致印象', time: '30分钟' },
+          { function: '数学校内同步练', content: '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度', time: '20分钟' },
+          { function: '数学错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '20分钟' },
+          { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 15 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '15分钟' },
+          { function: '语文校内同步课', content: '提前听一遍下周将要学习的内容，可适当倍速，重点是对新知识形成大致印象', time: '30分钟' },
+          { function: '语文趣味分级练', content: '学完一整个单元后练这个。学而思自研4级分层闯关，阶梯晋级', time: '20分钟' },
+          { function: '语文AI精准学（备考模式）', content: '检测本单元所有知识点的掌握情况，是考试前的自我摸底。掌握不扎实的考点需要自己安排时间进行专项练习。', time: '15分钟' }
+        ]
+      });
+    }
+
+    // --- 初中 3小时 后85% ---
+    if (isWeekend3Hour && isMiddleSchool && !isMathTop15 && !isChineseTop15 && !isEnglishTop15) {
+      // 周六：语言积累 + 数学、英语
+      plan.push({
+        day: '周六',
+        items: [
+          { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+          { function: '英语AI听写', content: '每天新背的单词和课内要求背诵的单词必须用听写反复练习', time: '10分钟' },
+          { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '10分钟' },
+          { function: '数学重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '30分钟' },
+          { function: '数学必考专项练', content: '按照教学大纲拆分考点，专项突破提升，不是按照课本单元顺序来分。适合有一定基础的，知道自己薄弱项的学生有针对性的做练习', time: '20分钟' },
+          { function: '数学AI精准学（备考模式）', content: '检测本单元所有知识点的掌握情况，是考试前的自我摸底。掌握不扎实的考点需要自己安排时间进行专项练习。', time: '20分钟' },
+          { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 15 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '15分钟' },
+          { function: '英语校内同步课', content: '在上课前快速听一遍所学内容，可适当倍速，重点是对新知识形成大致印象', time: '30分钟' },
+          { function: '英语趣味分级练', content: '学完一整个单元后练这个。学而思自研4级分层闯关，阶梯晋级', time: '20分钟' },
+          { function: '英语AI精准学（标准模式）', content: '检测本单元所有知识点的掌握情况，是考试前的自我摸底。掌握不扎实的考点需要自己安排时间进行专项练习。', time: '15分钟' }
+        ]
+      });
+      // 周日：语言积累 + 数学（同步）、语文（同步）
+      plan.push({
+        day: '周日',
+        items: [
+          { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+          { function: '英语AI听写', content: '每天新背的单词和课内要求背诵的单词必须用听写反复练习', time: '10分钟' },
+          { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '10分钟' },
+          { function: '数学校内同步课', content: '提前听一遍下周将要学习的内容，可适当倍速，重点是对新知识形成大致印象', time: '30分钟' },
+          { function: '数学校内同步练', content: '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度', time: '20分钟' },
+          { function: '数学错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '20分钟' },
+          { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 15 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '15分钟' },
+          { function: '语文校内同步课', content: '提前听一遍下周将要学习的内容，可适当倍速，重点是对新知识形成大致印象', time: '30分钟' },
+          { function: '语文趣味分级练', content: '学完一整个单元后练这个。学而思自研4级分层闯关，阶梯晋级', time: '20分钟' },
+          { function: '语文AI精准学（备考模式）', content: '检测本单元所有知识点的掌握情况，是考试前的自我摸底。掌握不扎实的考点需要自己安排时间进行专项练习。', time: '15分钟' }
+        ]
+      });
+    }
+
+    // --- 小学 3小时 含前15%（按科目判断） ---
+    if (isWeekend3Hour && isPrimary && (isMathTop15 || isChineseTop15 || isEnglishTop15)) {
+      // 周六：语言积累 + 数学、英语（英语按 isEnglishTop15 判断）
+      plan.push({
+        day: '周六',
+        items: [
+          { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+          { function: '英语AI听写', content: '每天新背的单词和课内要求背诵的单词必须用听写反复练习', time: '10分钟' },
+          { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '10分钟' },
+          { function: '数学重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '30分钟' },
+          { function: '数学必考专项练', content: '按照教学大纲拆分考点，专项突破提升，不是按照课本单元顺序来分。适合有一定基础的，知道自己薄弱项的学生有针对性的做练习', time: '20分钟' },
+          { function: '数学AI精准学（备考模式）', content: '检测本单元所有知识点的掌握情况，是考试前的自我摸底。掌握不扎实的考点需要自己安排时间进行专项练习。', time: '20分钟' },
+          { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 15 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '15分钟' },
+          {
+            function: isEnglishTop15 ? '英语重难点提分课' : '英语校内同步课',
+            content: isEnglishTop15 ? '根据学生自己的进度选择来学，自然拼读、语法精讲、分级阅读这几项内容都是很重要，需要掌握的。学生可以自行安排每周穿插来学' : '在上课前快速听一遍所学内容，可适当倍速，重点是对新知识形成大致印象',
+            time: '30分钟'
+          },
+          { function: '英语必考专项练', content: '分成"日常知识积累"和"学期必考专项"，结合了不同年级学生应该掌握的知识点来安排。英语科目比较特别，全国各地区各教材版本进度差距较大，大家学习时不用受限于年级，按照自己进度来选就可以。觉得简单了可以选择更高年级的内容来学习。', time: '20分钟' },
+          { function: '英语AI精准学（标准模式）', content: '检测本单元所有知识点的掌握情况，是考试前的自我摸底。掌握不扎实的考点需要自己安排时间进行专项练习。', time: '15分钟' }
+        ]
+      });
+      // 周日：语言积累 + 数学（按 isMathTop15）、语文（按 isChineseTop15）
+      plan.push({
+        day: '周日',
+        items: [
+          { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+          { function: '英语AI听写', content: '每天新背的单词和课内要求背诵的单词必须用听写反复练习', time: '10分钟' },
+          { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '10分钟' },
+          {
+            function: isMathTop15 ? '数学王牌拔尖课' : '数学校内同步课',
+            content: isMathTop15 ? '适合基础扎实，日常考试成绩保持在90分以上的学生' : '提前听一遍下周将要学习的内容，可适当倍速，重点是对新知识形成大致印象',
+            time: '30分钟'
+          },
+          {
+            function: isMathTop15 ? '数学王牌教辅练（《53天天练》等）' : '数学校内同步练',
+            content: isMathTop15 ? '不一定是选择《53》，学生如果有平时在练习其他教辅书也可以' : '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度',
+            time: '20分钟'
+          },
+          { function: '数学错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '20分钟' },
+          { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 15 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '15分钟' },
+          {
+            function: isChineseTop15 ? '语文重难点提分课' : '语文校内同步课',
+            content: isChineseTop15 ? '根据学生自己的进度选择来学，阅读专项、基础知识、作文这几项内容都是很重要，需要掌握的。学生可以自行安排每周穿插来学' : '提前听一遍下周将要学习的内容，可适当倍速，重点是对新知识形成大致印象',
+            time: '30分钟'
+          },
+          { function: '语文趣味分级练', content: '学完一整个单元后练这个。学而思自研4级分层闯关，阶梯晋级', time: '20分钟' },
+          { function: '语文AI精准学（备考模式）', content: '检测本单元所有知识点的掌握情况，是考试前的自我摸底。掌握不扎实的考点需要自己安排时间进行专项练习。', time: '15分钟' }
+        ]
+      });
+    }
+
+    // --- 初中 3小时 含前15%（按科目判断） ---
+    if (isWeekend3Hour && isMiddleSchool && (isMathTop15 || isChineseTop15 || isEnglishTop15)) {
+      // 周六：语言积累 + 数学、英语（英语按 isEnglishTop15 判断）
+      plan.push({
+        day: '周六',
+        items: [
+          { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+          { function: '英语AI听写', content: '每天新背的单词和课内要求背诵的单词必须用听写反复练习', time: '10分钟' },
+          { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '10分钟' },
+          { function: '数学重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '30分钟' },
+          { function: '数学必考专项练', content: '按照教学大纲拆分考点，专项突破提升，不是按照课本单元顺序来分。适合有一定基础的，知道自己薄弱项的学生有针对性的做练习', time: '20分钟' },
+          { function: '数学AI精准学（备考模式）', content: '检测本单元所有知识点的掌握情况，是考试前的自我摸底。掌握不扎实的考点需要自己安排时间进行专项练习。', time: '20分钟' },
+          { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 15 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '15分钟' },
+          {
+            function: isEnglishTop15 ? '英语重难点提分课' : '英语校内同步课',
+            content: isEnglishTop15 ? '根据学生自己的进度选择来学，自然拼读、语法精讲、分级阅读这几项内容都是很重要，需要掌握的。学生可以自行安排每周穿插来学' : '在上课前快速听一遍所学内容，可适当倍速，重点是对新知识形成大致印象',
+            time: '30分钟'
+          },
+          { function: '英语必考专项练', content: '分成"日常知识积累"和"学期必考专项"，结合了不同年级学生应该掌握的知识点来安排。英语科目比较特别，全国各地区各教材版本进度差距较大，大家学习时不用受限于年级，按照自己进度来选就可以。觉得简单了可以选择更高年级的内容来学习。', time: '20分钟' },
+          { function: '英语AI精准学（标准模式）', content: '检测本单元所有知识点的掌握情况，是考试前的自我摸底。掌握不扎实的考点需要自己安排时间进行专项练习。', time: '15分钟' }
+        ]
+      });
+      // 周日：语言积累 + 数学（按 isMathTop15）、语文（按 isChineseTop15）
+      plan.push({
+        day: '周日',
+        items: [
+          { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+          { function: '英语AI听写', content: '每天新背的单词和课内要求背诵的单词必须用听写反复练习', time: '10分钟' },
+          { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '10分钟' },
+          {
+            function: isMathTop15 ? '数学王牌拔尖课' : '数学校内同步课',
+            content: isMathTop15 ? '适合基础扎实，日常考试成绩保持在90分以上的学生' : '提前听一遍下周将要学习的内容，可适当倍速，重点是对新知识形成大致印象',
+            time: '30分钟'
+          },
+          {
+            function: isMathTop15 ? '数学王牌教辅练（《53天天练》等）' : '数学校内同步练',
+            content: isMathTop15 ? '不一定是选择《53》，学生如果有平时在练习其他教辅书也可以' : '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度',
+            time: '20分钟'
+          },
+          { function: '数学错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '20分钟' },
+          { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 15 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '15分钟' },
+          {
+            function: isChineseTop15 ? '语文重难点提分课' : '语文校内同步课',
+            content: isChineseTop15 ? '根据学生自己的进度选择来学，阅读专项、基础知识、作文这几项内容都是很重要，需要掌握的。学生可以自行安排每周穿插来学' : '提前听一遍下周将要学习的内容，可适当倍速，重点是对新知识形成大致印象',
+            time: '30分钟'
+          },
+          { function: '语文趣味分级练', content: '学完一整个单元后练这个。学而思自研4级分层闯关，阶梯晋级', time: '20分钟' },
+          { function: '语文AI精准学（备考模式）', content: '检测本单元所有知识点的掌握情况，是考试前的自我摸底。掌握不扎实的考点需要自己安排时间进行专项练习。', time: '15分钟' }
+        ]
+      });
+    }
+
+    // --- 高中 3小时（不分成绩） ---
+    if (isWeekend3Hour && isHighSchool) {
+      // 周六：数学 + 英语 + 语文
+      plan.push({
+        day: '周六',
+        items: [
+          { function: '数学重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '30分钟' },
+          { function: '数学必考专项练', content: '按照教学大纲拆分考点，专项突破提升，不是按照课本单元顺序来分。适合有一定基础的，知道自己薄弱项的学生有针对性的做练习', time: '20分钟' },
+          { function: '数学AI精准学（备考模式）', content: '检测本单元所有知识点的掌握情况，是考试前的自我摸底。掌握不扎实的考点需要自己安排时间进行专项练习。', time: '20分钟' },
+          { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '10分钟' },
+          { function: '英语重难点提分课', content: '根据学生自己的进度选择来学，自然拼读、语法精讲、分级阅读这几项内容都是很重要，需要掌握的。学生可以自行安排每周穿插来学', time: '25分钟' },
+          { function: '英语必考专项练', content: '分成"日常知识积累"和"学期必考专项"，结合了不同年级学生应该掌握的知识点来安排。英语科目比较特别，全国各地区各教材版本进度差距较大，大家学习时不用受限于年级，按照自己进度来选就可以。觉得简单了可以选择更高年级的内容来学习。', time: '20分钟' },
+          { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '10分钟' },
+          { function: '语文重难点提分课', content: '根据学生自己的进度选择来学，阅读专项、基础知识、作文这几项内容都是很重要，需要掌握的。学生可以自行安排每周穿插来学', time: '25分钟' },
+          { function: '语文必考专项练', content: '包括基础知识和阅读专项，学生可以根据自己的情况选择薄弱项来练习巩固', time: '20分钟' }
+        ]
+      });
+      // 周日：数学（AI精准学+错题+必考专项）+ 英语（必考专项+错题+AI精准学）+ 语文（必考专项+错题+AI精准学）
+      plan.push({
+        day: '周日',
+        items: [
+          { function: '数学AI精准学（备考模式）', content: '检测本单元所有知识点的掌握情况，是考试前的自我摸底。掌握不扎实的考点需要自己安排时间进行专项练习。', time: '25分钟' },
+          { function: '数学错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '20分钟' },
+          { function: '数学必考专项练', content: '按照教学大纲拆分考点，专项突破提升，不是按照课本单元顺序来分。适合有一定基础的，知道自己薄弱项的学生有针对性的做练习', time: '25分钟' },
+          { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '10分钟' },
+          { function: '英语必考专项练', content: '分成"日常知识积累"和"学期必考专项"，结合了不同年级学生应该掌握的知识点来安排。英语科目比较特别，全国各地区各教材版本进度差距较大，大家学习时不用受限于年级，按照自己进度来选就可以。觉得简单了可以选择更高年级的内容来学习。', time: '20分钟' },
+          { function: '英语错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '10分钟' },
+          { function: '英语AI精准学（备考模式）', content: '检测本单元所有知识点的掌握情况，是考试前的自我摸底。掌握不扎实的考点需要自己安排时间进行专项练习。', time: '15分钟' },
+          { function: '强制休息', content: '必须离开书桌，喝水、远眺。这 10 分钟不是浪费，而是让大脑进行"后台下载"，固化刚才学到的逻辑。', time: '10分钟' },
+          { function: '语文必考专项练', content: '包括基础知识和阅读专项，学生可以根据自己的情况选择薄弱项来练习巩固', time: '20分钟' },
+          { function: '语文错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '10分钟' },
+          { function: '语文AI精准学（备考模式）', content: '检测本单元所有知识点的掌握情况，是考试前的自我摸底。掌握不扎实的考点需要自己安排时间进行专项练习。', time: '15分钟' }
+        ]
+      });
+    }
+
   }
 
   return plan;
@@ -868,7 +2261,8 @@ export const parseAndProcessCSV = (file: File): Promise<StudentProcessedData[]> 
                 english: standardizedRow.english_rank || ''
               },
               standardizedRow.weekday_duration,
-              standardizedRow.weekend_duration
+              standardizedRow.weekend_duration,
+              machineType
             );
 
             return {
