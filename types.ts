@@ -25,6 +25,9 @@ export interface StudentRawData {
   // New: Submission Time from CSV
   submit_time?: string;
 
+  // New: Phone last 4 digits (Q23) for PDF password
+  phone?: string;
+
   // --- STRICT SURVEY TYPE FLAGS ---
   // If true, this row came from the K12 survey (asked for scores)
   is_k12_survey?: boolean;
@@ -114,6 +117,9 @@ export interface StudentProcessedData {
   
   // Manual override for diagnosis text
   customDiagnosis?: string;
+
+  // Phone last 4 digits for PDF encryption password
+  phone?: string;
 }
 
 export interface ProcessingStatus {

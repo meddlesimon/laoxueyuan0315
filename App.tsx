@@ -202,6 +202,19 @@ const App: React.FC = () => {
 
   // --- 7. PDF Generation Logic ---
 
+  // Helper: build jsPDF encryption options from student phone (last 4 digits)
+  const getPdfEncryption = (student: StudentProcessedData) => {
+    const pwd = student.phone && /^\d{4}$/.test(student.phone) ? student.phone : null;
+    if (!pwd) return {};
+    return {
+      encryption: {
+        userPassword: pwd,
+        ownerPassword: `beiqing_admin_${pwd}`,
+        userPermissions: ['print'] as ('print' | 'modify' | 'copy' | 'annot-forms')[]
+      }
+    };
+  };
+
   const generateSinglePDF = async (student: StudentProcessedData) => {
     setStatus(prev => ({ ...prev, isProcessing: true, current: 0, logs: [`正在生成 ${student.name} 的PDF...`, ...prev.logs] }));
     setRenderStudent(student);
@@ -215,7 +228,7 @@ const App: React.FC = () => {
         if (pages.length > 0) {
           // Initialize PDF with default A4. We will adjust subsequent pages if needed.
           // compress: true is important when using High-DPI images to keep file size reasonable
-          const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true });
+          const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true, ...getPdfEncryption(student) });
           const pdfWidth = 210;
 
           for (let p = 0; p < pages.length; p++) {
@@ -314,7 +327,7 @@ const App: React.FC = () => {
           const pages = templateRef.current.querySelectorAll('.report-page');
           if (pages.length > 0) {
             // Enable compression for batch processing to save memory
-            const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true });
+            const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true, ...getPdfEncryption(student) });
             const pdfWidth = 210;
 
             for (let p = 0; p < pages.length; p++) {
@@ -404,7 +417,7 @@ const App: React.FC = () => {
           const pages = templateRef.current.querySelectorAll('.report-page');
           if (pages.length > 0) {
             // FORCE A4 SIZE for all pages
-            const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true });
+            const pdf = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4', compress: true, ...getPdfEncryption(student) });
             const pageWidth = 210;
             const pageHeight = 297; // A4 Standard Height
 

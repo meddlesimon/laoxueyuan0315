@@ -147,7 +147,7 @@ const determineSubjectLevel = (score: number, rankStr: string): SubjectLevel => 
     if (rankStr.includes('25%~50%') || rankStr.includes('25%-50%')) return 2; 
     if (rankStr.includes('50%~75%') || rankStr.includes('50%-75%')) return 3; 
     if (rankStr.includes('后25%')) return 4; 
-    if (rankStr.includes('不清楚')) return 3; 
+    if (rankStr.includes('不清楚')) return 4; // 排名不清楚，按后85%处理，使用基础方案
   }
 
   if (score > 0) {
@@ -409,15 +409,18 @@ const processSurveyRow = (row: any): StudentRawData => {
   const machineKey = keys.find(k => k.includes('您的学习机品牌') || k.includes('学习机品牌') || k.includes('品牌') || k.includes('设备'));
   const boardingKey = keys.find(k => k.includes('住校') || k.includes('住宿') || k.includes('寄宿'));
   const submitTimeKey = keys.find(k => k.includes('答题结束时间') || k.includes('结束答题时间') || k.includes('提交时间') || k.includes('结束时间') || k.includes('答题时间') || k.includes('填写日期') || k.includes('日期'));
+  // Q23: Phone last 4 digits
+  const phoneKey = keys.find(k => k.includes('手机号后四位') || k.includes('解锁密码') || k.includes('后四位'));
   const weakPoints = keys.filter(k => k.includes('最想提升') && row[k]).map(k => cleanSurveyString(row[k])).filter(Boolean).join(',');
   
-  // Q17: Weekday duration
+  // Q17: Weekday duration（住校生跳过此题，直接留空）
+  const boardingFlagForWeekday = boardingKey ? (row[boardingKey]?.includes('是') || row[boardingKey]?.includes('住校') || row[boardingKey]?.includes('住宿')) : false;
   const weekdayKey = keys.find(k => k.includes('17') || (k.includes('周一到周五') && k.includes('时间')));
   // Q18: Weekend duration
   const weekendKey = keys.find(k => k.includes('18') || (k.includes('周六周日') && k.includes('时间')));
 
   let processedWeekday = '';
-  if (weekdayKey && row[weekdayKey]) {
+  if (!boardingFlagForWeekday && weekdayKey && row[weekdayKey]) {
       processedWeekday = row[weekdayKey].replace(/^[A-Z0-9○o]\.?[\s\、]?\s*/, '').trim();
   }
   let processedWeekend = '';
@@ -444,7 +447,8 @@ const processSurveyRow = (row: any): StudentRawData => {
     machine_brand: machineKey ? row[machineKey] : '',
     is_boarding: boardingKey ? (row[boardingKey].includes('是') || row[boardingKey].includes('住校') || row[boardingKey].includes('住宿')) : false,
     submit_time: submitTimeKey ? row[submitTimeKey] : '',
-    is_k12_survey: isK12Survey
+    is_k12_survey: isK12Survey,
+    phone: phoneKey ? row[phoneKey]?.toString().trim().slice(-4) : ''
   };
 };
 
@@ -463,7 +467,8 @@ const generateWeeklyPlan = (
   ranks: { math: string, chinese: string, english: string },
   weekdayDuration: string,
   weekendDuration: string,
-  machineType: MachineType = 'xueersi'
+  machineType: MachineType = 'xueersi',
+  isBoarding: boolean = false
 ): any[] => {
   const isPrimary = grade.includes('年级') && !grade.includes('初') && !grade.includes('高');
   const isHighSchool = ['高一', '高二', '高三'].includes(normalizeGrade(grade));
@@ -472,11 +477,14 @@ const generateWeeklyPlan = (
   const isEnglishTop15 = ranks.english.includes('15%') && (ranks.english.includes('前') || ranks.english.includes('Top'));
   
   const isMiddleSchool = ['初一', '初二', '初三'].includes(normalizeGrade(grade));
-  const is30Min = weekdayDuration.includes('30') || weekdayDuration.includes('半');
-  const is2Hour = weekdayDuration.includes('2') || weekdayDuration.includes('两');
-  const is1_5Hour = weekdayDuration.includes('1.5') || weekdayDuration.includes('一个半') || weekdayDuration.includes('1个半') || (weekdayDuration.includes('1') && weekdayDuration.includes('半'));
+  // 住校生没有工作日时长，用周末时长驱动模板选择（最终 return 时 filter 只保留周末）
+  const durationForTemplate = (isBoarding && !weekdayDuration.trim()) ? weekendDuration : weekdayDuration;
+
+  const is30Min = durationForTemplate.includes('30') || durationForTemplate.includes('半');
+  const is2Hour = durationForTemplate.includes('2') || durationForTemplate.includes('两');
+  const is1_5Hour = durationForTemplate.includes('1.5') || durationForTemplate.includes('一个半') || durationForTemplate.includes('1个半') || (durationForTemplate.includes('1') && durationForTemplate.includes('半'));
   const is1Hour = !is30Min && !is2Hour && !is1_5Hour &&
-                  (weekdayDuration.includes('1') || weekdayDuration.includes('一小时') || weekdayDuration.includes('1小时'));
+                  (durationForTemplate.includes('1') || durationForTemplate.includes('一小时') || durationForTemplate.includes('1小时'));
 
   const isWeekend1Hour = weekendDuration.includes('1') || weekendDuration.includes('一小时') || weekendDuration.includes('一个小时');
   const isWeekend2Hour = weekendDuration.includes('2') || weekendDuration.includes('两');
@@ -615,7 +623,7 @@ const generateWeeklyPlan = (
           { function: '英语精品密卷', content: W_ENG_EXAM_CONTENT, time: '30分钟' },
         ]});
         plan.push({ day: '周三', items: [
-          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '5分钟' },
+          { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
           { function: '语文同步练习题', content: W_CHN_SYNC_CONTENT, time: '25分钟' },
           { function: '语文教材同步课', content: W_CHN_SYNC_COURSE_CONTENT, time: '25分钟' },
         ]});
@@ -731,7 +739,7 @@ const generateWeeklyPlan = (
           { function: '数学应用题AI课', content: W_MATH_APP_CONTENT, time: '20分钟' },
           { function: '强制休息', content: W_REST_CONTENT, time: '10分钟' },
           { function: '语文同步练', content: W_CHN_SYNC_CONTENT, time: '20分钟' },
-          { function: '语文教材同步课', content: W_CHN_SYNC_COURSE_CONTENT, time: '30分钟' },
+          { function: '语文教材同步课', content: W_CHN_SYNC_COURSE_CONTENT, time: '20分钟' },
         ]});
         plan.push({ day: '周三', items: [
           { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
@@ -867,7 +875,6 @@ const generateWeeklyPlan = (
       ]});
     }
 
-    // 周末 2小时·初中/高中
     if (isWeekend2Hour && (isMiddleSchool || isHighSchool)) {
       plan.push({ day: '周六', items: [
         { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
@@ -876,7 +883,7 @@ const generateWeeklyPlan = (
         { function: '数学错题练', content: W_MATH_ERR_CONTENT, time: '10分钟' },
         { function: '强制休息', content: W_REST_CONTENT, time: '10分钟' },
         { function: '英语精品密卷', content: W_ENG_EXAM_CONTENT, time: '20分钟' },
-        { function: '英语听说-专项学习', content: W_ENG_ORAL_CONTENT, time: '20分钟' },
+        { function: '英语听说-专项学习', content: W_ENG_ORAL_CONTENT, time: '30分钟' },
       ]});
       plan.push({ day: '周日', items: [
         { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
@@ -884,12 +891,11 @@ const generateWeeklyPlan = (
         { function: '数学错题练', content: W_MATH_ERR_CONTENT, time: '15分钟' },
         { function: '数学校内同步练', content: W_MATH_SYNC_PREPARE_CONTENT, time: '20分钟' },
         { function: '强制休息', content: W_REST_CONTENT, time: '10分钟' },
-        { function: '语文精品密卷', content: W_CHN_EXAM_CONTENT, time: '30分钟' },
+        { function: '语文精品密卷', content: W_CHN_EXAM_CONTENT, time: '40分钟' },
         { function: '语文错题练', content: W_CHN_ERR_CONTENT, time: '10分钟' },
       ]});
     }
 
-    // 周末 3小时·小学（结构：单词10+数学60+休息10+语文45+休息10+英语45=180）
     if (isWeekend3Hour && isPrimary) {
       plan.push({ day: '周六', items: [
         { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
@@ -898,11 +904,10 @@ const generateWeeklyPlan = (
         { function: '思维拓展课', content: '【选做】' + W_THINK_CONTENT, time: '25分钟' },
         { function: '数学错题练', content: W_MATH_ERR_CONTENT, time: '10分钟' },
         { function: '强制休息', content: W_REST_CONTENT, time: '10分钟' },
-        { function: '语文字词学习', content: W_CHN_WORD_CONTENT, time: '20分钟' },
         { function: '语文同步练', content: W_CHN_SYNC_CONTENT, time: '25分钟' },
         { function: '强制休息', content: W_REST_CONTENT, time: '10分钟' },
         { function: '英语突破专项练', content: W_ENG_SPECIAL_CONTENT, time: '25分钟' },
-        { function: '英语精品密卷', content: W_ENG_EXAM_CONTENT, time: '20分钟' },
+        { function: '英语精品密卷', content: W_ENG_EXAM_CONTENT, time: '30分钟' },
       ]});
       plan.push({ day: '周日', items: [
         { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
@@ -912,7 +917,7 @@ const generateWeeklyPlan = (
         { function: '数学应用题AI课', content: W_MATH_APP_CONTENT, time: '20分钟' },
         { function: '强制休息', content: W_REST_CONTENT, time: '10分钟' },
         { function: '语文教材同步课', content: W_CHN_SYNC_COURSE_CONTENT, time: '25分钟' },
-        { function: '语文作文辅导', content: W_CHN_ESSAY_CONTENT, time: '20分钟' },
+        { function: '语文作文辅导', content: W_CHN_ESSAY_CONTENT, time: '10分钟' },
         { function: '强制休息', content: W_REST_CONTENT, time: '10分钟' },
         { function: '英语分级阅读-牛津阅读树', content: W_ENG_GRADE_CONTENT, time: '25分钟' },
         { function: '英语教材同步课', content: W_ENG_SYNC_CONTENT, time: '20分钟' },
@@ -947,7 +952,7 @@ const generateWeeklyPlan = (
       ]});
     }
 
-    return plan;
+    return isBoarding ? plan.filter((d: any) => d.day === '周六' || d.day === '周日') : plan;
   }
   // ============================================================
   // === 学而思课表分支（原有逻辑，保持不变）===
@@ -991,7 +996,7 @@ const generateWeeklyPlan = (
         { function: '（全科）全科批改/智慧眼', content: '把所有日常作业拍照上传到学习机', time: '5分钟' }
       ]
     });
-    return plan;
+    return isBoarding ? plan.filter((d: any) => d.day === '周六' || d.day === '周日') : plan;
   }
 
   // --- 30 MINUTE TEMPLATE (Grade 1-9) ---
@@ -1641,7 +1646,8 @@ const generateWeeklyPlan = (
         { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
         { function: '英语AI听写', content: '每天新背的单词和课内要求背诵的单词必须用听写反复练习', time: '10分钟' },
         { function: '（全科）全科批改/智慧眼', content: '把所有日常作业拍照上传到学习机', time: '5分钟' },
-        { function: '英语重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '25分钟' }
+        { function: '英语重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '25分钟' },
+        { function: '英语校内同步练', content: '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度', time: '10分钟' }
       ]
     });
   }
@@ -1726,82 +1732,78 @@ const generateWeeklyPlan = (
     plan.push({ day: '周五', items: friItems });
   }
   // --- 1 HOUR TEMPLATE (Grade 1-6) ---
+  // 结构：积累10分钟 + 批改5分钟 + 核心45分钟，合计60分钟
   else if (is1Hour && isPrimary) {
-    // 周一
+    // 周一（数学日）：背单词10 + 批改5 + 数学课25 + 数学AI专属练20 = 60分钟
     const monItems = [
       { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
-      { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '10分钟' },
       { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' },
       {
         function: isMathTop15 ? '数学重难点提分课' : '数学校内同步课',
         content: isMathTop15 ? '选择你目前认为做薄弱的一个内容来学习' : '在本周上课前快速听一遍将要学习的内容，可适当倍速，重点是对新知识形成大致印象',
-        time: '30分钟'
+        time: '25分钟'
       },
-      { function: '数学AI专属练', content: 'AI学习机会根据日常对你的了解，每天给你出10道它认为你最需要加强的题目', time: '15分钟' },
-      { function: '数学AI精准学（标准模式）', content: '检测最新学的知识点，对知识弱项进行针对性的提高（听视频课、做练习）', time: '20分钟' }
+      { function: '数学AI专属练', content: 'AI学习机会根据日常对你的了解，每天给你出10道它认为你最需要加强的题目', time: '20分钟' }
     ];
     plan.push({ day: '周一', items: monItems });
 
-    // 周二
+    // 周二（英语日）：背单词10 + 批改5 + 英语课30 + 英语同步练15 = 60分钟
     const tueItems = [
       { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
-      { function: '英语AI听写', content: '每天新背的单词和课内要求背诵的单词必须用听写反复练习', time: '10分钟' },
       { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' },
       {
         function: isEnglishTop15 ? '英语重难点提分课' : '英语校内同步课',
         content: isEnglishTop15 ? '选择你目前认为做薄弱的一个内容来学习' : '在上课前快速听一遍所学内容，可适当倍速，重点是对新知识形成大致印象',
-        time: '35分钟'
+        time: '30分钟'
       },
       {
         function: '英语校内同步练',
         content: isEnglishTop15 ? '选择同步练难度中或高的，可以根据自己的体验选择稍有挑战的难度' : '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度',
-        time: '20分钟'
-      },
-      { function: 'AI口语练', content: '任选一个对话内容，尽情聊天，一定要大声说出来，不要害羞', time: '10分钟' }
+        time: '15分钟'
+      }
     ];
     plan.push({ day: '周二', items: tueItems });
 
-    // 周三
+    // 周三（语文日）：听写10 + 批改5 + 语文核心45 = 60分钟
+    // 普通：语文同步课25 + 语文同步练20 = 45；Top15：专项练20 + 提分课25 = 45
     const wedItems = [
-      { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '15分钟' },
-      { function: '天天背单词', content: '坚持5分钟背单词', time: '5分钟' },
+      { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '10分钟' },
       { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' },
       ...(isChineseTop15 ? [
-        { function: '语文必考专项练', content: '是针对不同的考点来设计练习，并不是按照课本章节来进行的。适合基础较好，明确知道自己哪里有薄弱项的同学', time: '25分钟' },
-        { function: '语文重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '40分钟' }
+        { function: '语文必考专项练', content: '是针对不同的考点来设计练习，并不是按照课本章节来进行的。适合基础较好，明确知道自己哪里有薄弱项的同学', time: '20分钟' },
+        { function: '语文重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '25分钟' }
       ] : [
-        { function: '语文校内同步课', content: '在上课前快速听一遍所学内容，可适当倍速，重点是对新知识形成大致印象', time: '30分钟' },
-        { function: '语文校内同步练', content: '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度', time: '15分钟' },
-        { function: '语文重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '20分钟' }
+        { function: '语文校内同步课', content: '在上课前快速听一遍所学内容，可适当倍速，重点是对新知识形成大致印象', time: '25分钟' },
+        { function: '语文校内同步练', content: '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度', time: '20分钟' }
       ])
     ];
     plan.push({ day: '周三', items: wedItems });
 
-    // 周四
+    // 周四（数学日）：
+    // 普通：背单词10 + AI口算10 + 批改5 + 数学提分课25 + 数学AI专属练10 = 60
+    // Top15：背单词10 + 听写10 + 批改5 + 数学王牌课25 + 数学AI专属练10 = 60
     const thuItems = [
       { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
       ...(isMathTop15 ? [
         { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '10分钟' },
         { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' },
-        { function: '数学王牌拔尖课', content: '如果课内的内容都能听懂，平时成绩90分以上，可直接用王牌拔尖课来练习', time: '30分钟' }
+        { function: '数学王牌拔尖课', content: '如果课内的内容都能听懂，平时成绩90分以上，可直接用王牌拔尖课来练习', time: '25分钟' }
       ] : [
         { function: 'AI口算', content: '口算训练，保持对数字和运算的敏感', time: '10分钟' },
         { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' },
-        { function: '数学重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '30分钟' }
+        { function: '数学重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '25分钟' }
       ]),
-      { function: '数学AI专属练', content: 'AI学习机会根据日常对你的了解，每天给你出10道它认为你最需要加强的题目', time: '15分钟' },
-      { function: '数学AI精准学（标准模式）', content: '检测最新学的知识点，对知识弱项进行针对性的提高（听视频课、做练习）', time: '20分钟' }
+      { function: '数学AI专属练', content: 'AI学习机会根据日常对你的了解，每天给你出10道它认为你最需要加强的题目', time: '10分钟' }
     ];
     plan.push({ day: '周四', items: thuItems });
 
-    // 周五
+    // 周五（英语日）：背单词10 + 英语AI听写10 + 批改5 + 英语提分课25 + 英语错题练10 = 60分钟
     const friItems2 = [
       { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
       { function: '英语AI听写', content: '每天新背的单词和课内要求背诵的单词必须用听写反复练习', time: '10分钟' },
       { function: '（全科）全科批改/智慧眼', content: '把日常作业拍照上传到学习机', time: '5分钟' },
-      { function: '英语重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '35分钟' },
-      { function: '英语错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '20分钟' },
-      { function: 'AI口语练', content: '任选一个对话内容，尽情聊天，一定要大声说出来，不要害羞', time: '10分钟' }
+      { function: '英语重难点提分课', content: '选择你目前认为做薄弱的一个内容来学习', time: '25分钟' },
+      { function: '英语错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '10分钟' }
     ];
     plan.push({ day: '周五', items: friItems2 });
   }
@@ -2177,7 +2179,7 @@ const generateWeeklyPlan = (
 
   }
 
-  return plan;
+  return isBoarding ? plan.filter((d: any) => d.day === '周六' || d.day === '周日') : plan;
 };
 
 export const parseAndProcessCSV = (file: File): Promise<StudentProcessedData[]> => {
@@ -2262,7 +2264,8 @@ export const parseAndProcessCSV = (file: File): Promise<StudentProcessedData[]> 
               },
               standardizedRow.weekday_duration,
               standardizedRow.weekend_duration,
-              machineType
+              machineType,
+              !!standardizedRow.is_boarding
             );
 
             return {
@@ -2296,7 +2299,8 @@ export const parseAndProcessCSV = (file: File): Promise<StudentProcessedData[]> 
                 weekdayDuration: standardizedRow.weekday_duration,
                 weekendDuration: standardizedRow.weekend_duration,
                 isBoarding: !!standardizedRow.is_boarding
-              }
+              },
+              phone: standardizedRow.phone || ''
             };
           });
           resolve(processed);

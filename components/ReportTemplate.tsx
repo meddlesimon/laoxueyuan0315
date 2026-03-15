@@ -102,19 +102,39 @@ const PageFooter = ({ pageNum }: { pageNum: number }) => (
 const ReportTemplate = forwardRef<HTMLDivElement, ReportTemplateProps>(({ data }, ref) => {
   if (!data) return null;
 
-  const pagesToRender: Array<{ type: string; dayIndex?: number }> = [
-    { type: 'cover' },
-    { type: 'timed-training' },
-    ...data.weeklyPlan.map((_, index) => ({ type: 'daily-plan', dayIndex: index })),
-    { type: 'schedule-logic' }
-  ];
+  const isBoarding = data.surveyDetails.isBoarding;
+
+  const pagesToRender: Array<{ type: string; dayIndex?: number }> = isBoarding
+    ? [
+        { type: 'cover' },
+        { type: 'timed-training' },
+        { type: 'boarding-intro' },
+        ...data.weeklyPlan.map((_, index) => ({ type: 'daily-plan', dayIndex: index })),
+      ]
+    : [
+        { type: 'cover' },
+        { type: 'timed-training' },
+        ...data.weeklyPlan.map((_, index) => ({ type: 'daily-plan', dayIndex: index })),
+        { type: 'schedule-logic' }
+      ];
 
   const getDurationText = (day: string) => {
-    const plan = data.weeklyPlan.find(p => p.day === day);
-    if (!plan) return '';
-    const totalMinutes = plan.items.reduce((acc, item) => acc + parseInt(item.time || '0'), 0);
-    const totalHours = (totalMinutes / 60).toFixed(1).replace('.0', '');
-    return `（${totalHours}小时）`;
+    const isWeekend = day === '周六' || day === '周日';
+    const durationStr = isWeekend
+      ? (data.surveyDetails.weekendDuration || '')
+      : (data.surveyDetails.weekdayDuration || '');
+    if (!durationStr) return '';
+    if (!isWeekend) {
+      if (durationStr.includes('0.5') || durationStr.includes('30') || durationStr.includes('半')) return '（30分钟）';
+      if (durationStr.includes('1.5') || durationStr.includes('一个半') || durationStr.includes('1个半') || (durationStr.includes('1') && durationStr.includes('半'))) return '（1.5小时）';
+      if (durationStr.includes('2') || durationStr.includes('两')) return '（2小时）';
+      if (durationStr.includes('1') || durationStr.includes('一小时')) return '（1小时）';
+    } else {
+      if (durationStr.includes('3') || durationStr.includes('三')) return '（3小时）';
+      if (durationStr.includes('2') || durationStr.includes('两')) return '（2小时）';
+      if (durationStr.includes('1') || durationStr.includes('一小时')) return '（1小时）';
+    }
+    return '';
   };
 
   const renderScheduleLogicPage = (pageNum: number) => {
@@ -245,6 +265,108 @@ const ReportTemplate = forwardRef<HTMLDivElement, ReportTemplateProps>(({ data }
     );
   };
 
+  const renderBoardingIntroPage = (pageNum: number) => {
+    const weekendDuration = data.surveyDetails.weekendDuration || "";
+
+    let weekendContent = null;
+    if (weekendDuration.includes('1')) {
+      weekendContent = (
+        <div className="space-y-3">
+          <p className="text-purple-900 font-bold text-[15px]">孩子现在周末每天有 1 小时用来学习。虽然周末诱惑很多，但孩子依然能抽出固定时间查漏补缺，这种"不让问题过周末"的态度是非常值得肯定的！跟着老师的计划进行专项突破，进步会非常快。</p>
+          <div className="text-slate-600 text-[13px] leading-relaxed text-justify space-y-1.5">
+            <p>在只有一小时的情况下，我们追求的是"稳住地基，精准突破"。此时大脑最忌讳频繁换科，因为每一次切换都会损耗宝贵的专注力。</p>
+            <p><strong>第一阶段（15 分钟）：语言复盘包。</strong> 固定完成本周语、英重点词汇的复习。语言学习靠的是"天天见"，周末的这 15 分钟是保证记忆不滑坡的保底分。</p>
+            <p><strong>第二阶段（45 分钟）：专项深度攻坚。</strong> 针对本周最难的一个数学考点，利用"分级练"进行闯关。这 45 分钟要"一钻到底"，把一个知识点彻底吃透，只有深度思考才能带来真正的提分。</p>
+          </div>
+        </div>
+      );
+    } else if (weekendDuration.includes('3')) {
+      weekendContent = (
+        <div className="space-y-3">
+          <p className="text-purple-900 font-bold text-[15px]">孩子现在周末每天有 3 小时用来学习。这已经是非常高标准的自我要求了！这种"打深井"式的学习劲头，说明孩子对未来有着清晰的目标和强大的执行力，老师一定要为你点个赞！</p>
+          <div className="text-slate-600 text-[13px] leading-relaxed text-justify space-y-1.5">
+            <p>三小时的学习是一场马拉松，必须讲究"精力管理"。我们要把最难的任务放在专注力峰值期，并利用"换口味"的原理维持大脑的兴奋感。</p>
+            <p><strong>第一阶段（30 分钟）：综合语言积累。</strong> 包含单词、古诗词及优秀的阅读素材输入。这是学科的"基础营养"，每天 30 分钟能积攒出巨大的文学底蕴。</p>
+            <p><strong>第二阶段（70 分钟）：理科专项突破。</strong> 集中精力完成数学或科学的高难度"分级练"挑战。大块时间最适合钻研复杂逻辑，要养成限时训练的习惯，模拟考场感。</p>
+            <p><strong>第三阶段（15 分钟）：强制大休息。</strong> 离开书桌，可以简单拉伸或吃个水果。长时段学习后，必须通过彻底的放松来给大脑"充电"。</p>
+            <p><strong>第四阶段（65 分钟）：文科综合进阶。</strong> 切换到英语大阅读或语文逻辑拆解，让大脑换区工作，保持高产出。</p>
+            <p><strong>第五阶段（15 分钟）：黄金复盘总结。</strong> 利用"一张白纸法"默写今天最核心的公式或知识点。只有能输出的内容才是真的学到了，这一步是实现成绩跨越的关键。</p>
+          </div>
+        </div>
+      );
+    } else {
+      weekendContent = (
+        <div className="space-y-3">
+          <p className="text-purple-900 font-bold text-[15px]">孩子现在周末每天有 2 小时用来学习。这说明孩子不仅非常有上进心，而且具备了长时段专注的潜力，这份毅力已经是学霸的标配了！配合老师的科学排班，这两小时将成为你弯道超车的黄金期。</p>
+          <div className="text-slate-600 text-[13px] leading-relaxed text-justify space-y-1.5">
+            <p>当学习时长达到两小时，我们必须利用"交叉学习法"来对抗疲劳。通过科目切换，让大脑的不同区域轮流"休整"，保证全程高效。</p>
+            <p><strong>第一阶段（20 分钟）：双语高频刺激。</strong> 完成语、英的背诵或美文朗读。这 20 分钟是给大脑"热身"，利用最开始的兴奋劲儿完成基础积累。</p>
+            <p><strong>第二阶段（50 分钟）：重难点"分级练"。</strong> 此时电量最满，最适合啃数学硬骨头。建议针对薄弱项进行梯度练习，通过不断挑战更高难度的题目来提升逻辑思维。</p>
+            <p><strong>第三阶段（10 分钟）：强制脑休整。</strong> 必须离开书桌。这 10 分钟是让大脑"清内存"并把刚才学到的逻辑存入长期记忆，防止后半段效率下跌。</p>
+            <p><strong>第四阶段（40 分钟）：AI 精准学检测。</strong> 利用学习机的 AI 检测功能对本单元进行全面扫描，针对"红点"漏洞进行定向修补，确保本周知识点闭环，不留死角。</p>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div key={`page-${pageNum}`} className="report-page w-[794px] h-[1123px] bg-white relative shadow-2xl mx-auto mb-10 flex flex-col overflow-hidden font-sans">
+        <div className="bg-gradient-to-br from-purple-500 via-violet-600 to-indigo-700 text-white p-8 shrink-0 relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl"></div>
+          <div className="relative z-10">
+            <h2 className="text-2xl font-black mb-0 flex items-center gap-3">
+              <span className="bg-white text-purple-600 w-10 h-10 rounded-lg flex items-center justify-center shadow-lg text-xl">📅</span>
+              周末专属学习方案说明
+            </h2>
+          </div>
+        </div>
+        <div className="flex-1 p-6 bg-slate-50 flex flex-col gap-4 overflow-hidden">
+          {/* 引言区块 */}
+          <div className="bg-white p-5 rounded-2xl border border-purple-100 shadow-lg flex-shrink-0">
+            <h3 className="text-purple-900 font-black text-[16px] mb-3 flex items-center gap-2 border-b border-purple-50 pb-2">
+              <span className="w-1.5 h-6 bg-purple-500 rounded-full"></span>
+              致住校生家长
+            </h3>
+            <div className="space-y-3 text-slate-600 text-[13px] leading-relaxed text-justify">
+              <p>通过前期的沟通，老师已经了解到咱们的情况：孩子平时周一到周五住校，只有周六周日才能用学习机。大家千万别担心时间不够！老师带过很多住校生，大家都是利用周末这两天来"打翻身仗"的。其实学习不在于堆时间，而在于找对重点。只要咱们利用好这两天，效率完全可以盖过整周的盲目刷题，咱们有信心把这两天用出<strong className="text-purple-700">"双倍"的效果</strong>来！</p>
+              <div>
+                <p className="text-purple-900 font-bold mb-1.5">为什么AI能让你事半功倍？</p>
+                <p>咱们周末用学习机，核心就干一件事：<strong>查缺补漏</strong>。现在的AI技术非常厉害，它就像一个全天候陪着你的私教。不管你是用它拍照批改作业，还是在上面做练习、听课，AI算法都会默默记录你的每一个小细节。</p>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="bg-purple-50 rounded-xl p-3 text-center">
+                  <p className="text-purple-800 font-bold text-[12px] mb-1">它比你更懂你</p>
+                  <p className="text-slate-600 text-[11px] leading-snug">精准识别哪些知识点你已经吃透，哪些还是模糊的，帮你把"擅长"和"薄弱"分清楚。</p>
+                </div>
+                <div className="bg-purple-50 rounded-xl p-3 text-center">
+                  <p className="text-purple-800 font-bold text-[12px] mb-1">只练不会的</p>
+                  <p className="text-slate-600 text-[11px] leading-snug">不需要大海捞针去刷题，AI会针对你的薄弱项直接推送训练，哪里不会点哪里。</p>
+                </div>
+                <div className="bg-purple-50 rounded-xl p-3 text-center">
+                  <p className="text-purple-800 font-bold text-[12px] mb-1">备考有底气</p>
+                  <p className="text-slate-600 text-[11px] leading-snug">配合学习机自带的备考测试，帮你在回学校前做一次完美的"模拟战"。</p>
+                </div>
+              </div>
+              <p className="text-purple-800 font-bold text-[13px]">只要跟着老师这套科学方法走，哪怕一周只有这两天，你的进步也是肉眼可见的。咱们一起加油！</p>
+            </div>
+          </div>
+
+          {/* 周末安排逻辑区块 */}
+          <div className="bg-white p-5 rounded-2xl border border-purple-100 shadow-lg flex-1 flex flex-col overflow-hidden">
+            <h3 className="text-purple-900 font-black text-[16px] mb-3 flex items-center gap-2 border-b border-purple-50 pb-2 flex-shrink-0">
+              <span className="w-1.5 h-6 bg-purple-500 rounded-full"></span>
+              周六周日的时间安排逻辑
+            </h3>
+            <div className="flex-1 flex flex-col justify-center overflow-auto">
+              {weekendContent}
+            </div>
+          </div>
+        </div>
+        <PageFooter pageNum={pageNum} />
+      </div>
+    );
+  };
+
   return (
     <div ref={ref} className="bg-gray-100 p-8">
       {pagesToRender.map((page, globalIndex) => {
@@ -322,6 +444,11 @@ const ReportTemplate = forwardRef<HTMLDivElement, ReportTemplateProps>(({ data }
                    <PageFooter pageNum={pageNum} />
                 </div>
             );
+        }
+
+        // --- RENDER BOARDING INTRO PAGE ---
+        if (page.type === 'boarding-intro') {
+            return renderBoardingIntroPage(pageNum);
         }
 
         // --- RENDER SCHEDULE LOGIC PAGE ---
