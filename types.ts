@@ -32,6 +32,18 @@ export interface StudentRawData {
   // If true, this row came from the K12 survey (asked for scores)
   is_k12_survey?: boolean;
   is_boarding?: boolean;
+
+  // --- 新增问卷字段 ---
+  // 课堂听懂程度（"课堂内能听懂多少"）
+  classroom_comprehension?: string;
+  // 课内作业完成情况
+  homework_completion?: string;
+  // 考试完成速度
+  exam_speed?: string;
+  // 语文想提升的模块（多选，逗号分隔）
+  chinese_focus_modules?: string;
+  // 英语想提升的模块（多选，逗号分隔）
+  english_focus_modules?: string;
 }
 
 // 1 = Top (Top 5%), 5 = Bottom
@@ -111,6 +123,12 @@ export interface StudentProcessedData {
     weekdayDuration: string;
     weekendDuration: string;
     isBoarding: boolean;
+    // 新增问卷字段
+    classroomComprehension: string;
+    homeworkCompletion: string;
+    examSpeed: string;
+    chineseFocusModules: string[];
+    englishFocusModules: string[];
   };
   
   weeklyPlan: DailyPlan[];

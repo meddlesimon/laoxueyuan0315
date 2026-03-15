@@ -413,11 +413,22 @@ const processSurveyRow = (row: any): StudentRawData => {
   const phoneKey = keys.find(k => k.includes('手机号后四位') || k.includes('解锁密码') || k.includes('后四位'));
   const weakPoints = keys.filter(k => k.includes('最想提升') && row[k]).map(k => cleanSurveyString(row[k])).filter(Boolean).join(',');
   
-  // Q17: Weekday duration（住校生跳过此题，直接留空）
-  const boardingFlagForWeekday = boardingKey ? (row[boardingKey]?.includes('是') || row[boardingKey]?.includes('住校') || row[boardingKey]?.includes('住宿')) : false;
-  const weekdayKey = keys.find(k => k.includes('17') || (k.includes('周一到周五') && k.includes('时间')));
-  // Q18: Weekend duration
-  const weekendKey = keys.find(k => k.includes('18') || (k.includes('周六周日') && k.includes('时间')));
+  // 新增：课堂听懂程度
+  const classroomComprehensionKey = keys.find(k => k.includes('能听懂') || k.includes('课堂学习效率') || k.includes('听懂多少'));
+  // 新增：课内作业完成情况
+  const homeworkCompletionKey = keys.find(k => k.includes('课内作业完成情况') || (k.includes('作业') && k.includes('完成情况')));
+  // 新增：考试速度
+  const examSpeedKey = keys.find(k => k.includes('考试完成的速度') || k.includes('考试速度') || k.includes('做题速度'));
+  // 新增：语文想提升的模块（含"语文"且含"提升"）
+  const chineseFocusKey = keys.find(k => k.includes('语文') && k.includes('最想提升'));
+  // 新增：英语想提升的模块（含"英语"且含"提升"）
+  const englishFocusKey = keys.find(k => k.includes('英语') && k.includes('最想提升'));
+
+  // 学习机时长（周一~周五）：含"学习机"且含"周一" 或 含"周一~周五"
+  const boardingFlagForWeekday = boardingKey ? !row[boardingKey]?.includes('没有住校') && (row[boardingKey]?.includes('是') || row[boardingKey]?.includes('住校') || row[boardingKey]?.includes('住宿')) : false;
+  const weekdayKey = keys.find(k => k.includes('学习机') && (k.includes('周一') || k.includes('周一~周五') || k.includes('周一到周五')));
+  // 学习机时长（周六~周日）：含"学习机"且含"周六"
+  const weekendKey = keys.find(k => k.includes('学习机') && (k.includes('周六') || k.includes('周六~周日') || k.includes('周六周日')));
 
   let processedWeekday = '';
   if (!boardingFlagForWeekday && weekdayKey && row[weekdayKey]) {
@@ -445,10 +456,19 @@ const processSurveyRow = (row: any): StudentRawData => {
     plan_habit: planKey ? row[planKey] : '',
     mistake_habit: mistakeKey ? row[mistakeKey] : '',
     machine_brand: machineKey ? row[machineKey] : '',
-    is_boarding: boardingKey ? (row[boardingKey].includes('是') || row[boardingKey].includes('住校') || row[boardingKey].includes('住宿')) : false,
+    is_boarding: boardingKey ? (
+      !row[boardingKey]?.includes('没有住校') &&
+      (row[boardingKey]?.includes('是') || row[boardingKey]?.includes('住校') || row[boardingKey]?.includes('住宿'))
+    ) : false,
     submit_time: submitTimeKey ? row[submitTimeKey] : '',
     is_k12_survey: isK12Survey,
-    phone: phoneKey ? row[phoneKey]?.toString().trim().slice(-4) : ''
+    phone: phoneKey ? row[phoneKey]?.toString().trim().slice(-4) : '',
+    // 新增问卷字段
+    classroom_comprehension: classroomComprehensionKey ? row[classroomComprehensionKey] : '',
+    homework_completion: homeworkCompletionKey ? row[homeworkCompletionKey] : '',
+    exam_speed: examSpeedKey ? row[examSpeedKey] : '',
+    chinese_focus_modules: chineseFocusKey ? row[chineseFocusKey] : '',
+    english_focus_modules: englishFocusKey ? row[englishFocusKey] : '',
   };
 };
 
@@ -462,13 +482,379 @@ const detectMachineType = (brandStr: string | undefined): MachineType => {
 
 // --- 4. Weekly Plan Templates ---
 
+// ============================================================
+// === 学而思问卷个性化后处理函数 ===
+// ============================================================
+
+/**
+ * 判断语文/英语成绩档位
+ * 返回 'top'（优等/前15%）| 'middle'（中等）| 'weak'（差生/后50%）
+ */
+const getSubjectLevel = (rank: string, score: number): 'top' | 'middle' | 'weak' => {
+  if (rank) {
+    if (rank.includes('前15%') || rank.includes('Top 15') || (rank.includes('前') && rank.includes('15'))) return 'top';
+    if (rank.includes('后50%') || rank.includes('后 50') || rank.includes('50%') && rank.includes('后')) return 'weak';
+    // 15%~50% 区间
+    if (rank.includes('15%') || rank.includes('50%')) return 'middle';
+  }
+  if (score > 0) {
+    if (score >= 90) return 'top';
+    if (score >= 70) return 'middle';
+    return 'weak';
+  }
+  return 'middle';
+};
+
+/**
+ * 学而思周计划问卷个性化调整
+ * 规则：只修改 function 名称和 content 文字，不新增/删除条目，不改 time
+ */
+const applyXueersiSurveyAdjustments = (
+  plan: any[],
+  extras: {
+    classroomComprehension?: string;
+    carelessHabit?: string;
+    homeworkCompletion?: string;
+    examSpeed?: string;
+    chineseFocusModules?: string[];
+    englishFocusModules?: string[];
+    chineseScore?: number;
+    chineseRank?: string;
+    englishScore?: number;
+    englishRank?: string;
+  }
+): void => {
+  const {
+    classroomComprehension = '',
+    carelessHabit = '',
+    chineseFocusModules = [],
+    englishFocusModules = [],
+    chineseScore = 0,
+    chineseRank = '',
+    englishScore = 0,
+    englishRank = '',
+  } = extras;
+
+  // --- 成绩档位判断 ---
+  const chineseLevel = getSubjectLevel(chineseRank, chineseScore);
+  const englishLevel = getSubjectLevel(englishRank, englishScore);
+
+  // --- 课堂听不懂：在同步课 content 前加说明 ---
+  const poorComprehension = classroomComprehension.includes('一半以上听不懂');
+  if (poorComprehension) {
+    plan.forEach(day => {
+      day.items.forEach((item: any) => {
+        if (item.function.includes('同步课')) {
+          item.content = '【建议课前预习】你反映课堂上有超过一半内容听不懂，用同步课提前预习非常关键。上课前先快速过一遍，对新知识有大致印象后，课堂吸收率会提高很多。\n\n' + item.content;
+        }
+      });
+    });
+  }
+
+  // --- 经常马虎：在练习类 content 末尾追加提醒 ---
+  const isCareless = carelessHabit.includes('经常马虎');
+  if (isCareless) {
+    plan.forEach(day => {
+      day.items.forEach((item: any) => {
+        const fn: string = item.function;
+        if (fn.includes('练') && !fn.includes('强制休息') && !fn.includes('批改') && !fn.includes('背单词') && !fn.includes('听写') && !fn.includes('背诵')) {
+          item.content = item.content + '\n\n⚠️ 你反映有马虎习惯，做完后一定要回头检查一遍，这是提分最快的方式。';
+        }
+      });
+    });
+  }
+
+  // --- 语文模块调整（仅中等/优等生生效）---
+  // 过滤出有意义的语文模块选项（排除"其他"）
+  const validChineseModules = chineseFocusModules.filter(m =>
+    m && !m.includes('其他') && (m.includes('阅读') || m.includes('写作') || m.includes('生字') || m.includes('拼音') || m.includes('基础'))
+  );
+
+  // 将问卷选项映射为简短模块名
+  const mapChineseModule = (m: string): string => {
+    if (m.includes('阅读')) return '阅读理解';
+    if (m.includes('写作')) return '写作';
+    if (m.includes('生字') || m.includes('拼音') || m.includes('基础')) return '基础知识';
+    return m;
+  };
+
+  const chineseMappedModules = validChineseModules.map(mapChineseModule);
+
+  if (chineseMappedModules.length > 0 && chineseLevel !== 'weak') {
+    // 合并模块名（全部写上，用/分隔）
+    const moduleSuffix = chineseMappedModules.join('/');
+
+    // 收集七天内所有语文主课条目（含"语文重难点提分课"或"语文必考专项练"的）
+    // 轮流队列：为每个条目分配一个模块（循环）
+    const allChineseMainItems: Array<{ item: any; type: 'tifenke' | 'zhuanyanlian' }> = [];
+
+    plan.forEach(day => {
+      day.items.forEach((item: any) => {
+        const fn: string = item.function;
+        if (fn.includes('语文重难点提分课')) {
+          allChineseMainItems.push({ item, type: 'tifenke' });
+        } else if (fn.includes('语文必考专项练')) {
+          allChineseMainItems.push({ item, type: 'zhuanyanlian' });
+        }
+      });
+    });
+
+    // 如果模块数等于1，所有条目都标同一模块
+    // 如果模块数 >= 2，轮流标注不同模块（每天一个）
+    if (chineseMappedModules.length === 1) {
+      // 单个模块：提分课和专项练都标同一个
+      allChineseMainItems.forEach(({ item, type }) => {
+        if (type === 'tifenke') {
+          item.function = `语文重难点提分课——${moduleSuffix}`;
+          item.content = `根据你的选择，重点学习【${moduleSuffix}】模块。` + item.content;
+        } else {
+          item.function = `语文必考专项练——${moduleSuffix}`;
+        }
+      });
+    } else {
+      // 多个模块：轮流标注
+      allChineseMainItems.forEach(({ item, type }, idx) => {
+        const currentModule = chineseMappedModules[idx % chineseMappedModules.length];
+        if (type === 'tifenke') {
+          item.function = `语文重难点提分课——${currentModule}`;
+          item.content = `今天重点学习【${currentModule}】模块。` + item.content;
+        } else {
+          item.function = `语文必考专项练——${currentModule}`;
+        }
+      });
+
+      // 本周排不上的模块：在最后一个语文条目末尾加注
+      if (allChineseMainItems.length < chineseMappedModules.length) {
+        const missingModules = chineseMappedModules.slice(allChineseMainItems.length);
+        if (allChineseMainItems.length > 0) {
+          const lastItem = allChineseMainItems[allChineseMainItems.length - 1].item;
+          lastItem.content += `\n\n📌 本周未安排到的模块：${missingModules.join('、')}，下周可以优先学习这些板块。`;
+        }
+      }
+    }
+  } else if (chineseMappedModules.length > 0 && chineseLevel === 'weak') {
+    // 差生：语文必考专项练 → 替换回语文校内同步练
+    plan.forEach(day => {
+      day.items.forEach((item: any) => {
+        if (item.function.includes('语文必考专项练')) {
+          item.function = '语文校内同步练';
+          item.content = '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度';
+        }
+      });
+    });
+    // 语文重难点提分课：保留但加模块说明
+    const moduleSuffix = chineseMappedModules.join('/');
+    plan.forEach(day => {
+      day.items.forEach((item: any) => {
+        if (item.function.includes('语文重难点提分课')) {
+          item.function = `语文重难点提分课——${moduleSuffix}`;
+          item.content = `基础薄弱的同学同样可以学习重难点提分课，按照自己最想改善的模块选择对应内容听课就可以。比如想改善阅读，就去听重难点提分课里的阅读板块；想改善写作，就听写作板块。听课比做题更适合现阶段的你，先把知识点弄懂，后续再做练习巩固。`;
+        }
+      });
+    });
+  }
+
+  // --- 英语模块调整 ---
+  // 四类选项：语法/阅读理解/听力/写作 → 标注提分课和专项练
+  // 口语 → 替换/标注 AI口语练的 content
+  // 分级阅读 → 替换某个英语主课条目为英语分级阅读
+
+  const validEnglishModules = englishFocusModules.filter(m => m && !m.includes('其他') && !m.includes('启蒙'));
+
+  if (validEnglishModules.length > 0 && englishLevel !== 'weak') {
+    // 分类：普通模块 vs 特殊模块
+    const specialModules: string[] = []; // 口语、分级阅读
+    const normalModules: string[] = [];  // 语法、阅读理解、听力、写作等
+
+    validEnglishModules.forEach(m => {
+      if (m.includes('口语')) specialModules.push('口语');
+      else if (m.includes('课外阅读') || m.includes('分级阅读')) specialModules.push('分级阅读');
+      else normalModules.push(m);
+    });
+
+    // 普通模块的名称映射
+    const mapEnglishModule = (m: string): string => {
+      if (m.includes('语法')) return '语法';
+      if (m.includes('阅读理解') || m.includes('阅读')) return '阅读理解';
+      if (m.includes('听力')) return '听力';
+      if (m.includes('写作')) return '写作';
+      if (m.includes('单词') || m.includes('词组')) return '词汇';
+      return m;
+    };
+    const mappedNormalModules = normalModules.map(mapEnglishModule);
+
+    // 收集七天内所有英语主课条目
+    // 英语主课 = 含"英语"且不含"天天背单词"/"AI听写"/"全科批改"
+    interface EnglishMainItem {
+      item: any;
+      type: 'tifenke' | 'zhuanyanlian' | 'other';
+    }
+    const allEnglishMainItems: EnglishMainItem[] = [];
+
+    plan.forEach(day => {
+      day.items.forEach((item: any) => {
+        const fn: string = item.function;
+        if (!fn.includes('英语')) return;
+        if (fn.includes('天天背单词') || fn.includes('AI听写') || fn.includes('AI背诵') || fn.includes('全科批改')) return;
+        if (fn.includes('英语重难点提分课')) {
+          allEnglishMainItems.push({ item, type: 'tifenke' });
+        } else if (fn.includes('英语必考专项练')) {
+          allEnglishMainItems.push({ item, type: 'zhuanyanlian' });
+        } else {
+          allEnglishMainItems.push({ item, type: 'other' });
+        }
+      });
+    });
+
+    // 构建替换队列（先处理普通模块，再处理特殊模块）
+    // 普通模块：标注到提分课/专项练
+    if (mappedNormalModules.length > 0) {
+      const moduleSuffix = mappedNormalModules.join('/');
+      // 找出提分课条目和专项练条目
+      const tifenItems = allEnglishMainItems.filter(i => i.type === 'tifenke');
+      const zhuanyanlianItems = allEnglishMainItems.filter(i => i.type === 'zhuanyanlian');
+
+      tifenItems.forEach((ei, idx) => {
+        const currentModule = mappedNormalModules.length === 1 ? moduleSuffix : mappedNormalModules[idx % mappedNormalModules.length];
+        ei.item.function = `英语重难点提分课——${currentModule}`;
+        ei.item.content = `今天重点学习【${currentModule}】模块的提分课内容，按照自己的进度选择对应板块学习。`;
+      });
+      zhuanyanlianItems.forEach((ei, idx) => {
+        const currentModule = mappedNormalModules.length === 1 ? moduleSuffix : mappedNormalModules[idx % mappedNormalModules.length];
+        ei.item.function = `英语必考专项练——${currentModule}`;
+        ei.item.content = `重点做【${currentModule}】专项练习，分成"日常知识积累"和"学期必考专项"，结合了不同年级学生应该掌握的知识点来安排。`;
+      });
+    }
+
+    // 特殊模块：口语和分级阅读，轮流替换"other"类型的条目
+    const otherItems = allEnglishMainItems.filter(i => i.type === 'other');
+    let specialIdx = 0;
+    specialModules.forEach(sm => {
+      if (specialIdx < otherItems.length) {
+        const target = otherItems[specialIdx];
+        if (sm === '口语') {
+          target.item.function = 'AI口语分级练';
+          target.item.content = '这里会有一个AI老师，跟你进行校园内常见对话的练习，AI老师还会不断帮你优化表达，告诉你更地道的说法是什么。练习口语的时候，一定要大声地说出来，"开口说"是最难的一步，只要开口了就赢了90%。';
+        } else if (sm === '分级阅读') {
+          target.item.function = '英语分级阅读';
+          target.item.content = '分级阅读是根据阅读材料的词汇难度、句子长度、文体类型、文字排版、篇章结构和主题等要素的不同，给不同阅读能力水平者提供有科学性和针对性的读物。';
+        }
+        specialIdx++;
+      } else {
+        // 排不上：在最后一个英语主课条目末尾加注
+        if (allEnglishMainItems.length > 0) {
+          const lastItem = allEnglishMainItems[allEnglishMainItems.length - 1].item;
+          const smLabel = sm === '口语' ? 'AI口语分级练' : '英语分级阅读';
+          lastItem.content += `\n\n📌 本周未安排到【${smLabel}】，也可以选择${smLabel}来练习，下周可以优先安排。`;
+        }
+      }
+    });
+
+    // 本周普通模块排不上的：加注
+    if (mappedNormalModules.length > 0) {
+      const tifenCount = allEnglishMainItems.filter(i => i.type === 'tifenke').length;
+      const zhuanCount = allEnglishMainItems.filter(i => i.type === 'zhuanyanlian').length;
+      const covered = Math.max(tifenCount, zhuanCount);
+      if (covered > 0 && mappedNormalModules.length > covered) {
+        const missing = mappedNormalModules.slice(covered);
+        const lastEnglishItem = allEnglishMainItems[allEnglishMainItems.length - 1];
+        if (lastEnglishItem) {
+          lastEnglishItem.item.content += `\n\n📌 本周未安排到的模块：${missing.join('、')}，下周可以优先安排。`;
+        }
+      }
+    }
+  } else if (validEnglishModules.length > 0 && englishLevel === 'weak') {
+    // 英语差生：课表里的重难点提分课/必考专项练 → 替换回同步课/同步练
+    plan.forEach(day => {
+      day.items.forEach((item: any) => {
+        if (item.function.includes('英语重难点提分课')) {
+          item.function = '英语校内同步课';
+          item.content = '在上课前快速听一遍所学内容，可适当倍速，重点是对新知识形成大致印象';
+        } else if (item.function.includes('英语必考专项练')) {
+          item.function = '英语校内同步练';
+          item.content = '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度';
+        }
+      });
+    });
+  }
+
+  // --- 连续性检查：AI精准学/错题练 连续3天同科出现则打断 ---
+  const subjectsToCheck = ['数学', '语文', '英语'];
+  const functionsToCheck = ['AI精准学', '错题练'];
+
+  subjectsToCheck.forEach(subject => {
+    functionsToCheck.forEach(fnKeyword => {
+      // 记录七天内出现该类条目的天索引
+      const matchDayIndices: number[] = [];
+      plan.forEach((day, dayIdx) => {
+        const hasMatch = day.items.some((item: any) =>
+          item.function.includes(subject) && item.function.includes(fnKeyword) && !item.function.includes('强制休息')
+        );
+        if (hasMatch) matchDayIndices.push(dayIdx);
+      });
+
+      // 检查是否存在连续3天及以上
+      for (let i = 0; i + 2 < matchDayIndices.length; i++) {
+        if (
+          matchDayIndices[i + 1] === matchDayIndices[i] + 1 &&
+          matchDayIndices[i + 2] === matchDayIndices[i] + 2
+        ) {
+          // 第三天（matchDayIndices[i+2]）的该条目替换
+          const targetDay = plan[matchDayIndices[i + 2]];
+          targetDay.items.forEach((item: any) => {
+            if (item.function.includes(subject) && item.function.includes(fnKeyword)) {
+              // 根据成绩决定替换成什么
+              const level = subject === '语文' ? chineseLevel : (subject === '英语' ? englishLevel : 'middle');
+              if (level === 'top') {
+                if (subject === '数学') {
+                  item.function = '数学必考专项练';
+                  item.content = '按照教学大纲拆分考点，专项突破提升，不是按照课本单元顺序来分。适合有一定基础的，知道自己薄弱项的学生有针对性的做练习';
+                } else if (subject === '语文') {
+                  item.function = '语文必考专项练';
+                  item.content = '是针对不同的考点来设计练习，并不是按照课本章节来进行的。适合基础较好，明确知道自己哪里有薄弱项的同学';
+                } else {
+                  item.function = '英语必考专项练';
+                  item.content = '分成"日常知识积累"和"学期必考专项"，结合了不同年级学生应该掌握的知识点来安排';
+                }
+              } else {
+                if (subject === '数学') {
+                  item.function = '数学校内同步练';
+                  item.content = '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度';
+                } else if (subject === '语文') {
+                  item.function = '语文校内同步练';
+                  item.content = '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度';
+                } else {
+                  item.function = '英语校内同步练';
+                  item.content = '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度';
+                }
+              }
+            }
+          });
+        }
+      }
+    });
+  });
+};
+
 const generateWeeklyPlan = (
   grade: string,
   ranks: { math: string, chinese: string, english: string },
   weekdayDuration: string,
   weekendDuration: string,
   machineType: MachineType = 'xueersi',
-  isBoarding: boolean = false
+  isBoarding: boolean = false,
+  surveyExtras?: {
+    classroomComprehension?: string;
+    carelessHabit?: string;
+    homeworkCompletion?: string;
+    examSpeed?: string;
+    chineseFocusModules?: string[];
+    englishFocusModules?: string[];
+    chineseScore?: number;
+    chineseRank?: string;
+    englishScore?: number;
+    englishRank?: string;
+  }
 ): any[] => {
   const isPrimary = grade.includes('年级') && !grade.includes('初') && !grade.includes('高');
   const isHighSchool = ['高一', '高二', '高三'].includes(normalizeGrade(grade));
@@ -2179,6 +2565,11 @@ const generateWeeklyPlan = (
 
   }
 
+  // 学而思方案：应用问卷个性化后处理
+  if (machineType !== 'iflytek' && surveyExtras) {
+    applyXueersiSurveyAdjustments(plan, surveyExtras);
+  }
+
   return isBoarding ? plan.filter((d: any) => d.day === '周六' || d.day === '周日') : plan;
 };
 
@@ -2265,7 +2656,24 @@ export const parseAndProcessCSV = (file: File): Promise<StudentProcessedData[]> 
               standardizedRow.weekday_duration,
               standardizedRow.weekend_duration,
               machineType,
-              !!standardizedRow.is_boarding
+              !!standardizedRow.is_boarding,
+              // 新增：问卷个性化参数
+              {
+                classroomComprehension: standardizedRow.classroom_comprehension || '',
+                carelessHabit: standardizedRow.careless_habit || '',
+                homeworkCompletion: standardizedRow.homework_completion || '',
+                examSpeed: standardizedRow.exam_speed || '',
+                chineseFocusModules: standardizedRow.chinese_focus_modules
+                  ? standardizedRow.chinese_focus_modules.split(/[,，]/).map((s: string) => s.trim()).filter(Boolean)
+                  : [],
+                englishFocusModules: standardizedRow.english_focus_modules
+                  ? standardizedRow.english_focus_modules.split(/[,，]/).map((s: string) => s.trim()).filter(Boolean)
+                  : [],
+                chineseScore: mapScoreToNumber(standardizedRow.chinese_score),
+                chineseRank: standardizedRow.chinese_rank || '',
+                englishScore: mapScoreToNumber(standardizedRow.english_score),
+                englishRank: standardizedRow.english_rank || '',
+              }
             );
 
             return {
@@ -2298,7 +2706,17 @@ export const parseAndProcessCSV = (file: File): Promise<StudentProcessedData[]> 
                 mistakes: standardizedRow.mistake_habit || '',
                 weekdayDuration: standardizedRow.weekday_duration,
                 weekendDuration: standardizedRow.weekend_duration,
-                isBoarding: !!standardizedRow.is_boarding
+                isBoarding: !!standardizedRow.is_boarding,
+                // 新增问卷字段
+                classroomComprehension: standardizedRow.classroom_comprehension || '',
+                homeworkCompletion: standardizedRow.homework_completion || '',
+                examSpeed: standardizedRow.exam_speed || '',
+                chineseFocusModules: standardizedRow.chinese_focus_modules
+                  ? standardizedRow.chinese_focus_modules.split(/[,，]/).map((s: string) => s.trim()).filter(Boolean)
+                  : [],
+                englishFocusModules: standardizedRow.english_focus_modules
+                  ? standardizedRow.english_focus_modules.split(/[,，]/).map((s: string) => s.trim()).filter(Boolean)
+                  : [],
               },
               phone: standardizedRow.phone || ''
             };
