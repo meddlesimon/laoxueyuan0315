@@ -872,7 +872,11 @@ const generateWeeklyPlan = (
   const is1Hour = !is30Min && !is2Hour && !is1_5Hour &&
                   (durationForTemplate.includes('1') || durationForTemplate.includes('一小时') || durationForTemplate.includes('1小时'));
 
-  const isWeekend1Hour = weekendDuration.includes('1') || weekendDuration.includes('一小时') || weekendDuration.includes('一个小时');
+  const isWeekend30Min = weekendDuration.includes('30') || weekendDuration.includes('半小时');
+  const isWeekend1Hour = !isWeekend30Min && (
+    (weekendDuration.includes('1') && !weekendDuration.includes('1.5') && !weekendDuration.includes('一个半') && !weekendDuration.includes('1个半')) ||
+    weekendDuration.includes('一小时') || weekendDuration.includes('一个小时')
+  );
   const isWeekend2Hour = weekendDuration.includes('2') || weekendDuration.includes('两');
   const isWeekend3Hour = weekendDuration.includes('3') || weekendDuration.includes('三');
 
@@ -894,7 +898,6 @@ const generateWeeklyPlan = (
     const W_MATH_APP_CONTENT = '归纳每学期的应用题重难点，根据难度进行分类，帮助学生精准训练应用题重难点。';
     const W_THINK_CONTENT = '通过互动闯关逐一攻破小学数学知识点，趣味性强，题目少而精';
     const W_THINK_VIDEO_CONTENT = '先看视频课学习基本方法，再通过互动闯关逐一攻破小学数学知识点，趣味性强，题目少而精';
-    const W_MATH_SYNC_CONTENT = '上完课就做练习，把学过的题目再做一遍不容易忘。如果学得快，就试试难一点的题，慢慢让自己更厉害。';
     const W_ENG_SYNC_CONTENT = '在学校正式开始上课之前，可以利用学习机的同步课程提前浏览一遍课程的知识点。其重点在于：1. 对将要学习的内容形成大致印象；2. 提升课堂学习的效率';
     const W_ENG_SPECIAL_CONTENT = '按语法、完形、阅读、听力等考试常见题型分类，精准提炼了英语学习中所有重难点';
     const W_ENG_GRADE_CONTENT = '分级阅读是根据阅读材料的词汇难度、句子长度、文体类型、文字排版、篇章结构和主题等要素的不同，给不同阅读能力水平者提供有科学性和针对性的读物。采用分级阅读的模式不但可以让少年儿童的阅读变得科学有效，而且更容易激发他们的阅读兴趣。';
@@ -1207,6 +1210,30 @@ const generateWeeklyPlan = (
     // 周末课表（讯飞）
     // -------------------------------------------------------
 
+    // 周末 30分钟·小学
+    if (isWeekend30Min && isPrimary) {
+      plan.push({ day: '周六', items: [
+        { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+        { function: '数学AI精准学', content: W_MATH_AI_CONTENT, time: '20分钟' },
+      ]});
+      plan.push({ day: '周日', items: [
+        { function: '语文同步练', content: W_CHN_SYNC_CONTENT, time: '20分钟' },
+        { function: '数学错题练', content: W_MATH_ERR_CONTENT, time: '10分钟' },
+      ]});
+    }
+
+    // 周末 30分钟·初中/高中
+    if (isWeekend30Min && (isMiddleSchool || isHighSchool)) {
+      plan.push({ day: '周六', items: [
+        { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '10分钟' },
+        { function: '数学AI精准学', content: W_MATH_AI_CONTENT, time: '20分钟' },
+      ]});
+      plan.push({ day: '周日', items: [
+        { function: '英语天天记单词', content: W_VOCAB_CONTENT, time: '5分钟' },
+        { function: '英语突破专项练', content: W_ENG_SPECIAL_CONTENT, time: '25分钟' },
+      ]});
+    }
+
     // 周末 1小时·小学
     if (isWeekend1Hour && isPrimary) {
       plan.push({ day: '周六', items: [
@@ -1382,7 +1409,6 @@ const generateWeeklyPlan = (
         { function: '（全科）全科批改/智慧眼', content: '把所有日常作业拍照上传到学习机', time: '5分钟' }
       ]
     });
-    return isBoarding ? plan.filter((d: any) => d.day === '周六' || d.day === '周日') : plan;
   }
 
   // --- 30 MINUTE TEMPLATE (Grade 1-9) ---
@@ -2195,7 +2221,8 @@ const generateWeeklyPlan = (
   }
 
   // --- WEEKEND TEMPLATE ---
-  if (plan.length > 0) {
+  // 住校生平日不在家，weekdayDuration 为空，plan 此时为空，但仍需生成周末课表
+  if (plan.length > 0 || (isBoarding && !weekdayDuration.trim())) {
 
     // --- 高中 2小时周末 ---
     if (isWeekend2Hour && isHighSchool) {
@@ -2347,6 +2374,66 @@ const generateWeeklyPlan = (
           { function: '英语AI听写', content: '每天新背的单词和课内要求背诵的单词必须用听写反复练习', time: '5分钟' },
           { function: '英语AI精准学（标准模式）', content: '检测本单元所有知识点的掌握情况，是考试前的自我摸底。掌握不扎实的考点需要自己安排时间进行专项练习。', time: '20分钟' },
           { function: '英语重难点提分课', content: '根据学生自己的进度选择来学，自然拼读、语法精讲、分级阅读这几项内容都是很重要，需要掌握的。学生可以自行安排每周穿插来学', time: '25分钟' }
+        ]
+      });
+    }
+
+    // --- 小学 30分钟周末 ---
+    if (isWeekend30Min && isPrimary) {
+      plan.push({
+        day: '周六',
+        items: [
+          { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+          { function: '数学AI精准学（标准模式）', content: '检测最新学的知识点，对知识弱项进行针对性的提高', time: '15分钟' },
+          { function: '（全科）全科批改/智慧眼', content: '把所有日常作业拍照上传到学习机', time: '5分钟' }
+        ]
+      });
+      plan.push({
+        day: '周日',
+        items: [
+          { function: '英语AI听写', content: '每天新背的单词和课内要求背诵的单词必须用听写反复练习', time: '5分钟' },
+          { function: '语文AI听写或AI背诵', content: '如果最近学的课文有要求背诵，优先进行AI背诵。如果都背诵完了，就听写最近学的课文对应的字词', time: '10分钟' },
+          { function: '数学AI专属练', content: 'AI学习机会根据日常对你的了解，每天给你出10道它认为你最需要加强的题目', time: '10分钟' },
+          { function: '（全科）全科批改/智慧眼', content: '把所有日常作业拍照上传到学习机', time: '5分钟' }
+        ]
+      });
+    }
+
+    // --- 初中 30分钟周末 ---
+    if (isWeekend30Min && isMiddleSchool) {
+      plan.push({
+        day: '周六',
+        items: [
+          { function: '天天背单词', content: '坚持10分钟背单词', time: '10分钟' },
+          { function: '数学AI精准学（标准模式）', content: '检测最新学的知识点，对知识弱项进行针对性的提高', time: '15分钟' },
+          { function: '（全科）全科批改/智慧眼', content: '把所有日常作业拍照上传到学习机', time: '5分钟' }
+        ]
+      });
+      plan.push({
+        day: '周日',
+        items: [
+          { function: '英语AI听写', content: '每天新背的单词和课内要求背诵的单词必须用听写反复练习', time: '10分钟' },
+          { function: '英语校内同步练', content: '同步练难度分为低、中、高，可以根据自己的体验选择稍有挑战的难度', time: '15分钟' },
+          { function: '（全科）全科批改/智慧眼', content: '把所有日常作业拍照上传到学习机', time: '5分钟' }
+        ]
+      });
+    }
+
+    // --- 高中 30分钟周末 ---
+    if (isWeekend30Min && isHighSchool) {
+      plan.push({
+        day: '周六',
+        items: [
+          { function: '数学AI精准学（标准模式）', content: '检测最新学的知识点，对知识弱项进行针对性的提高', time: '15分钟' },
+          { function: '数学错题练', content: '"订正本周错题"和"攻克本周薄弱项"', time: '10分钟' },
+          { function: '（全科）全科批改/智慧眼', content: '把所有日常作业拍照上传到学习机', time: '5分钟' }
+        ]
+      });
+      plan.push({
+        day: '周日',
+        items: [
+          { function: '英语必考专项练', content: '分成"日常知识积累"和"学期必考专项"，结合了不同年级学生应该掌握的知识点来安排。', time: '25分钟' },
+          { function: '（全科）全科批改/智慧眼', content: '把所有日常作业拍照上传到学习机', time: '5分钟' }
         ]
       });
     }
@@ -2566,7 +2653,7 @@ const generateWeeklyPlan = (
   }
 
   // 学而思方案：应用问卷个性化后处理
-  if (machineType !== 'iflytek' && surveyExtras) {
+  if (surveyExtras) {
     applyXueersiSurveyAdjustments(plan, surveyExtras);
   }
 
