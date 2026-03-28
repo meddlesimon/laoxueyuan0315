@@ -195,8 +195,8 @@ const generateDiagnosisText = (data: StudentProcessedData) => {
   // === 学习时长提取 ===
   const durationStr = surveyDetails.weekdayDuration || '';
   let durationText = '每天的学习时间';
-  if (durationStr.includes('0.5') || durationStr.includes('30') || durationStr.includes('半')) durationText = '每天 30 分钟';
-  else if (durationStr.includes('1.5') || durationStr.includes('一个半')) durationText = '每天 1.5 小时';
+  if (durationStr.includes('1.5') || durationStr.includes('一个半') || durationStr.includes('1个半') || durationStr.includes('一小时30') || durationStr.includes('1小时30')) durationText = '每天 1.5 小时';
+  else if (durationStr.includes('0.5') || durationStr.includes('30') || durationStr.includes('半')) durationText = '每天 30 分钟';
   else if (durationStr.includes('2') || durationStr.includes('两')) durationText = '每天 2 小时';
   else if (durationStr.includes('1') || durationStr.includes('一小时')) durationText = '每天 1 小时';
 
@@ -268,6 +268,34 @@ const PageFooter = ({ pageNum }: { pageNum: number }) => (
   </div>
 );
 
+const WatermarkLayer = ({ onBlue = false }: { onBlue?: boolean }) => (
+  <div className="pointer-events-none absolute inset-0 z-50 overflow-hidden select-none">
+    {[
+      { top: '20%', left: '50%' },
+      { top: '50%', left: '50%' },
+      { top: '78%', left: '50%' },
+    ].map((pos, i) => (
+      <div
+        key={i}
+        style={{
+          position: 'absolute',
+          top: pos.top,
+          left: pos.left,
+          transform: 'translateX(-50%) rotate(-30deg)',
+          fontSize: '22px',
+          fontWeight: 'bold',
+          color: onBlue ? 'rgba(255,255,255,0.08)' : 'rgba(100,100,100,0.08)',
+          whiteSpace: 'nowrap',
+          letterSpacing: '4px',
+          userSelect: 'none',
+        }}
+      >
+        北大孙叶夫妇直播间
+      </div>
+    ))}
+  </div>
+);
+
 const ReportTemplate = forwardRef<HTMLDivElement, ReportTemplateProps>(({ data }, ref) => {
   if (!data) return null;
 
@@ -294,8 +322,8 @@ const ReportTemplate = forwardRef<HTMLDivElement, ReportTemplateProps>(({ data }
       : (data.surveyDetails.weekdayDuration || '');
     if (!durationStr) return '';
     if (!isWeekend) {
+      if (durationStr.includes('1.5') || durationStr.includes('一个半') || durationStr.includes('1个半') || durationStr.includes('一小时30') || durationStr.includes('1小时30') || (durationStr.includes('1') && durationStr.includes('半'))) return '（1.5小时）';
       if (durationStr.includes('0.5') || durationStr.includes('30') || durationStr.includes('半')) return '（30分钟）';
-      if (durationStr.includes('1.5') || durationStr.includes('一个半') || durationStr.includes('1个半') || (durationStr.includes('1') && durationStr.includes('半'))) return '（1.5小时）';
       if (durationStr.includes('2') || durationStr.includes('两')) return '（2小时）';
       if (durationStr.includes('1') || durationStr.includes('一小时')) return '（1小时）';
     } else {
@@ -311,7 +339,12 @@ const ReportTemplate = forwardRef<HTMLDivElement, ReportTemplateProps>(({ data }
     const weekendDuration = data.surveyDetails.weekendDuration || "";
 
     let weekdayContent = null;
-    if (weekdayDuration.includes('0.5') || weekdayDuration.includes('30')) {
+    const isWeekday1_5Hour = weekdayDuration.includes('1.5')
+      || weekdayDuration.includes('一个半')
+      || weekdayDuration.includes('1个半')
+      || weekdayDuration.includes('一小时30分')
+      || weekdayDuration.includes('1小时30分');
+    if (!isWeekday1_5Hour && (weekdayDuration.includes('0.5') || weekdayDuration.includes('30') || weekdayDuration.includes('半小时'))) {
       weekdayContent = (
         <div className="space-y-4">
           <p className="text-purple-900 font-bold text-lg">孩子现在周一到周五，每天都有0.5小时用来学习，这个时间不算多，但也足够完成课堂知识的巩固和查缺补漏。</p>
@@ -320,7 +353,7 @@ const ReportTemplate = forwardRef<HTMLDivElement, ReportTemplateProps>(({ data }
           </p>
         </div>
       );
-    } else if (weekdayDuration.includes('1.5')) {
+    } else if (isWeekday1_5Hour) {
       weekdayContent = (
         <div className="space-y-4">
           <p className="text-purple-900 font-bold text-lg">孩子现在周一到周五，每天都有1.5小时用来学习，这个时间安排说明孩子是非常自律，有决心提升成绩的。老师也很有信心帮助孩子提升成绩。</p>
@@ -429,6 +462,7 @@ const ReportTemplate = forwardRef<HTMLDivElement, ReportTemplateProps>(({ data }
             </div>
           </div>
         </div>
+        <WatermarkLayer />
         <PageFooter pageNum={pageNum} />
       </div>
     );
@@ -531,6 +565,7 @@ const ReportTemplate = forwardRef<HTMLDivElement, ReportTemplateProps>(({ data }
             </div>
           </div>
         </div>
+        <WatermarkLayer />
         <PageFooter pageNum={pageNum} />
       </div>
     );
@@ -611,6 +646,7 @@ const ReportTemplate = forwardRef<HTMLDivElement, ReportTemplateProps>(({ data }
                       </div>
                    </div>
 
+                   <WatermarkLayer />
                    <PageFooter pageNum={pageNum} />
                 </div>
             );
@@ -721,6 +757,7 @@ const ReportTemplate = forwardRef<HTMLDivElement, ReportTemplateProps>(({ data }
                         </div>
                     </div>
 
+                    <WatermarkLayer />
                     <PageFooter pageNum={pageNum} />
                 </div>
             );
@@ -811,6 +848,7 @@ const ReportTemplate = forwardRef<HTMLDivElement, ReportTemplateProps>(({ data }
                             </div>
                         </div>
                    </div>
+                   <WatermarkLayer onBlue={true} />
                    <PageFooter pageNum={pageNum} />
                 </div>
             );

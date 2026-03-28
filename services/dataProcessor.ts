@@ -866,19 +866,26 @@ const generateWeeklyPlan = (
   // 住校生没有工作日时长，用周末时长驱动模板选择（最终 return 时 filter 只保留周末）
   const durationForTemplate = (isBoarding && !weekdayDuration.trim()) ? weekendDuration : weekdayDuration;
 
-  const is30Min = durationForTemplate.includes('30') || durationForTemplate.includes('半');
-  const is2Hour = durationForTemplate.includes('2') || durationForTemplate.includes('两');
-  const is1_5Hour = durationForTemplate.includes('1.5') || durationForTemplate.includes('一个半') || durationForTemplate.includes('1个半') || (durationForTemplate.includes('1') && durationForTemplate.includes('半'));
-  const is1Hour = !is30Min && !is2Hour && !is1_5Hour &&
-                  (durationForTemplate.includes('1') || durationForTemplate.includes('一小时') || durationForTemplate.includes('1小时'));
+  const is3Hour = durationForTemplate.includes('三小时') || durationForTemplate.includes('3小时') || (durationForTemplate.includes('3') && !durationForTemplate.includes('30'));
+  const is2Hour = durationForTemplate.includes('两小时') || durationForTemplate.includes('2小时') || durationForTemplate.includes('两') || (durationForTemplate.includes('2') && !durationForTemplate.includes('20'));
+  const is1_5Hour = durationForTemplate.includes('1.5')
+    || durationForTemplate.includes('一个半')
+    || durationForTemplate.includes('1个半')
+    || durationForTemplate.includes('一小时30分')
+    || durationForTemplate.includes('1小时30分')
+    || (durationForTemplate.includes('1') && durationForTemplate.includes('半'));
+  const is30Min = !is1_5Hour && (durationForTemplate.includes('30') || durationForTemplate.includes('半小时'));
+  const is1Hour = !is30Min && !is2Hour && !is1_5Hour && !is3Hour &&
+                  (durationForTemplate.includes('一小时') || durationForTemplate.includes('1小时') || durationForTemplate.includes('一个小时')
+                   || (durationForTemplate.includes('1') && !durationForTemplate.includes('1.5')));
 
+  const isWeekend3Hour = weekendDuration.includes('三小时') || weekendDuration.includes('3小时') || (weekendDuration.includes('3') && !weekendDuration.includes('30'));
+  const isWeekend2Hour = weekendDuration.includes('两小时') || weekendDuration.includes('2小时') || weekendDuration.includes('两') || (weekendDuration.includes('2') && !weekendDuration.includes('20'));
   const isWeekend30Min = weekendDuration.includes('30') || weekendDuration.includes('半小时');
-  const isWeekend1Hour = !isWeekend30Min && (
+  const isWeekend1Hour = !isWeekend30Min && !isWeekend2Hour && !isWeekend3Hour && (
     (weekendDuration.includes('1') && !weekendDuration.includes('1.5') && !weekendDuration.includes('一个半') && !weekendDuration.includes('1个半')) ||
     weekendDuration.includes('一小时') || weekendDuration.includes('一个小时')
   );
-  const isWeekend2Hour = weekendDuration.includes('2') || weekendDuration.includes('两');
-  const isWeekend3Hour = weekendDuration.includes('3') || weekendDuration.includes('三');
 
   // 放行：小学、初中、高中（任意时长）
   if (!isPrimary && !isMiddleSchool && !isHighSchool) return [];

@@ -15,6 +15,7 @@ const App: React.FC = () => {
   // --- State: Database & UI ---
   const [allStudents, setAllStudents] = useState<StudentProcessedData[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [selectedDate, setSelectedDate] = useState<string>(''); // 格式: 'YYYY-MM-DD'
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   
   const [status, setStatus] = useState<ProcessingStatus>({
@@ -144,6 +145,20 @@ const App: React.FC = () => {
   };
 
   // --- 4. Filter & Sort Logic (Search & Newest First) ---
+  // --- Available Dates for Filter Dropdown ---
+  const availableDates = useMemo(() => {
+    const dateMap = new Map<string, number>(); // key: 'YYYY-MM-DD', value: count
+    allStudents.forEach(s => {
+      if (s.submitTime > 0) {
+        const d = new Date(s.submitTime);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        dateMap.set(key, (dateMap.get(key) || 0) + 1);
+      }
+    });
+    return Array.from(dateMap.entries())
+      .sort((a, b) => b[0].localeCompare(a[0])); // 最新日期在前
+  }, [allStudents]);
+
   const filteredStudents = useMemo(() => {
     let result = [...allStudents]; // Copy array for sorting
     
@@ -156,7 +171,17 @@ const App: React.FC = () => {
       );
     }
     
-    // 4.2 Sort Logic
+    // 4.2 Filter by Date
+    if (selectedDate) {
+      result = result.filter(s => {
+        if (!s.submitTime) return false;
+        const d = new Date(s.submitTime);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        return key === selectedDate;
+      });
+    }
+
+    // 4.3 Sort Logic
     return result.sort((a, b) => {
       const timeA = a.submitTime || 0;
       const timeB = b.submitTime || 0;
@@ -166,7 +191,7 @@ const App: React.FC = () => {
       if (b.uploadTimestamp !== a.uploadTimestamp) return b.uploadTimestamp - a.uploadTimestamp;
       return (b.csvIndex || 0) - (a.csvIndex || 0);
     });
-  }, [allStudents, searchTerm]);
+  }, [allStudents, searchTerm, selectedDate]);
 
   // --- 5. Selection Logic ---
   const handleSelectAll = () => {
@@ -264,7 +289,7 @@ const App: React.FC = () => {
             
             pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
           }
-          pdf.save(`${student.name}-专属学习方案.pdf`);
+          pdf.save(`${student.name}-${student.grade}-正式学员课表.pdf`);
           setStatus(prev => ({ ...prev, isProcessing: false, logs: [`${student.name} PDF 下载成功`, ...prev.logs] }));
         }
       } catch (err) {
@@ -308,8 +333,8 @@ const App: React.FC = () => {
 
     const zip = new JSZip();
     const folderName = selectedIds.size > 0 
-       ? `课程推荐_选中导出_${new Date().toISOString().split('T')[0]}`
-       : `课程推荐_批量导出_${new Date().toISOString().split('T')[0]}`;
+       ? `正式课表_${new Date().toISOString().split('T')[0]}`
+       : `正式课表_${new Date().toISOString().split('T')[0]}`;
        
     const folder = zip.folder(folderName);
 
@@ -353,7 +378,7 @@ const App: React.FC = () => {
               
               pdf.addImage(imgData, 'JPEG', 0, 0, pdfWidth, pdfHeight);
             }
-            if (folder) folder.file(`${student.name}-专属学习方案.pdf`, pdf.output('blob'));
+            if (folder) folder.file(`${student.name}-${student.grade}-正式学员课表.pdf`, pdf.output('blob'));
           }
         } catch (err) {
           console.error(err);
@@ -399,8 +424,8 @@ const App: React.FC = () => {
 
     const zip = new JSZip();
     const folderName = selectedIds.size > 0 
-       ? `课程推荐_A4打印版_${new Date().toISOString().split('T')[0]}`
-       : `课程推荐_批量A4打印版_${new Date().toISOString().split('T')[0]}`;
+       ? `正式课表_A4打印版_${new Date().toISOString().split('T')[0]}`
+       : `正式课表_A4打印版_${new Date().toISOString().split('T')[0]}`;
        
     const folder = zip.folder(folderName);
 
@@ -462,7 +487,7 @@ const App: React.FC = () => {
                 heightLeft -= pageHeight;
               }
             }
-            if (folder) folder.file(`${student.name}-A4打印版.pdf`, pdf.output('blob'));
+            if (folder) folder.file(`${student.name}-${student.grade}-正式学员课表.pdf`, pdf.output('blob'));
           }
         } catch (err) {
           console.error(err);
@@ -545,8 +570,7 @@ const App: React.FC = () => {
       )}
 
       <header className="mb-8 text-center max-w-2xl">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">《北清领学营》</h1>
-        <p className="text-gray-500">自动化学生课程推荐与方案生成系统</p>
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">北清领学营正式学员带密码课表生成系统</h1>
       </header>
 
       <main className="w-full max-w-4xl space-y-6">
@@ -612,6 +636,34 @@ const App: React.FC = () => {
               </div>
 
               <div className="flex items-center gap-3 w-full md:w-auto">
+                 {/* Date Filter Dropdown */}
+                 {availableDates.length > 0 && (
+                   <div className="relative shrink-0">
+                     <select
+                       value={selectedDate}
+                       onChange={(e) => {
+                         setSelectedDate(e.target.value);
+                         setSelectedIds(new Set());
+                       }}
+                       className="appearance-none pl-3 pr-8 py-2.5 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-sm text-gray-700 cursor-pointer"
+                     >
+                       <option value="">全部日期</option>
+                       {availableDates.map(([dateKey, count]) => {
+                         const [, month, day] = dateKey.split('-');
+                         const label = `${parseInt(month)}月${parseInt(day)}日（${count}人）`;
+                         return (
+                           <option key={dateKey} value={dateKey}>{label}</option>
+                         );
+                       })}
+                     </select>
+                     <div className="pointer-events-none absolute inset-y-0 right-2 flex items-center text-gray-400">
+                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                       </svg>
+                     </div>
+                   </div>
+                 )}
+
                  {/* Search Bar */}
                  <div className="relative w-full md:w-56 group">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 group-focus-within:text-indigo-500 transition-colors" size={18} />
